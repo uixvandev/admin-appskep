@@ -2,89 +2,18 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "../components/PageHeader";
 import Section from "../components/Section";
 import type { Order } from "../lib/api";
+import { getAllOrders } from "../lib/api";
 import { safeReplace } from "../utils/safeAccess";
 
 const OrdersPage = () => {
-  // Dummy data for testing (memoized to keep stable reference)
-  const dummyOrders: Order[] = useMemo(() => [
-    {
-      id: 1,
-      order_number: 202401001,
-      user_id: 1,
-      kelas_id: 1,
-      payment_reference: "PAY-123456789",
-      gross_amount: 500000,
-      status: "pending",
-      payment_type: "bank_transfer",
-      transaction_id: "TXN-123456",
-      snap_token: "snap_token_123",
-      snap_redirect_url:
-        "https://app.midtrans.com/snap/v1/transactions/snap_token_123/redirect",
-      created_at: "2024-08-01T10:00:00.000Z",
-      updated_at: "2024-08-01T10:00:00.000Z",
-      user: {
-        id: 1,
-        name: "John Doe",
-        email: "john@example.com",
-        role: "student",
-        phone_number: "081234567890",
-        date_of_birth: "1995-01-01",
-        gender: "male",
-        city: "Jakarta",
-        created_at: "2024-07-01T10:00:00.000Z",
-        updated_at: "2024-07-01T10:00:00.000Z",
-        updated_by: 1,
-      },
-      kelas: {
-        id: 1,
-        name: "Kelas CPNS 2024",
-        description: "Persiapan ujian CPNS tahun 2024",
-        price: 500000,
-      },
-    },
-    {
-      id: 2,
-      order_number: 202401002,
-      user_id: 2,
-      kelas_id: 1,
-      payment_reference: "PAY-987654321",
-      gross_amount: 500000,
-      status: "paid",
-      payment_type: "credit_card",
-      transaction_id: "TXN-987654",
-      snap_token: "snap_token_456",
-      snap_redirect_url:
-        "https://app.midtrans.com/snap/v1/transactions/snap_token_456/redirect",
-      created_at: "2024-08-02T14:30:00.000Z",
-      updated_at: "2024-08-02T15:00:00.000Z",
-      user: {
-        id: 2,
-        name: "Jane Smith",
-        email: "jane@example.com",
-        role: "student",
-        phone_number: "081234567891",
-        date_of_birth: "1992-05-15",
-        gender: "female",
-        city: "Bandung",
-        created_at: "2024-07-02T10:00:00.000Z",
-        updated_at: "2024-07-02T10:00:00.000Z",
-        updated_by: 1,
-      },
-      kelas: {
-        id: 1,
-        name: "Kelas CPNS 2024",
-        description: "Persiapan ujian CPNS tahun 2024",
-        price: 500000,
-      },
-    },
-  ], []);
+  // Using server data (no local dummy)
 
-  const [orders, setOrders] = useState<Order[]>(dummyOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(2);
+  const [totalItems, setTotalItems] = useState(0);
   // Standardized items per page (kept constant untuk konsistensi antar halaman)
   const ITEMS_PER_PAGE = 10;
   // Filter: search only
@@ -99,22 +28,18 @@ const OrdersPage = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log("Loading orders with page:", page, "limit:", ITEMS_PER_PAGE);
-
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // For now, use dummy data
-      setOrders(dummyOrders);
-      setTotalItems(dummyOrders.length);
-      setTotalPages(1);
-      setCurrentPage(1);
+      const res = await getAllOrders(page, ITEMS_PER_PAGE);
+      const payload = res?.data;
+      setOrders(payload?.data || []);
+      setTotalItems(payload?.total_items ?? 0);
+      setTotalPages(payload?.total_pages ?? 1);
+      setCurrentPage(payload?.page ?? page);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, dummyOrders]);
+  }, [currentPage]);
 
   useEffect(() => {
     loadOrders();
@@ -158,19 +83,7 @@ const OrdersPage = () => {
     return arr;
   }, [filteredOrders, sortKey, sortDir]);
 
-  const paginatedOrders = useMemo(() => {
-    const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-    return sortedOrders.slice(startIdx, startIdx + ITEMS_PER_PAGE);
-  }, [sortedOrders, currentPage]);
-
-  // Keep total items/pages in sync with filters
-  useEffect(() => {
-    const total = filteredOrders.length;
-    setTotalItems(total);
-    const pages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
-    setTotalPages(pages);
-    if (currentPage > pages) setCurrentPage(pages);
-  }, [filteredOrders]);
+  // Client-side pagination removed; rely on server totals
 
   // Pagination helper untuk tampilan angka halaman yang ringkas
   const getPageNumbers = (
@@ -465,7 +378,7 @@ const OrdersPage = () => {
                       </td>
                     </tr>
                   ) : (
-                    paginatedOrders.map((order) => (
+                    sortedOrders.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                         <td>
                           <div className="flex flex-col">

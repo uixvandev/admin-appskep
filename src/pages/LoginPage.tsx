@@ -3,8 +3,8 @@ import { getToken, login, saveToken } from "../lib/api";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("admin@ukom.id");
-  const [password, setPassword] = useState("password");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="space-y-6">
+          <form onSubmit={onSubmit} className="space-y-6" autoComplete="off">
             <div>
               <label htmlFor="email" className="label">
                 Alamat Email
@@ -72,7 +72,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="anda@email.com"
-                autoComplete="email"
+                autoComplete="off"
                 required
                 className="input w-full mt-1"
               />
@@ -89,7 +89,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  autoComplete="current-password"
+                  autoComplete="off"
                   required
                   className="input w-full pr-10"
                 />
