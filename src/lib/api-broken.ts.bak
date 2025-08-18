@@ -1,0 +1,958 @@
+const API_BASE_URL = "/api/v1";
+
+export type ApiResponse = {
+  success: boolean;
+  message: string;
+  data?: any;
+  error?: string;
+};
+
+export type LoginResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    token: string;
+    user: {
+      id: number;
+      name: string;
+      email: string;
+      role: string;
+      phone_number?: string;
+      date_of_birth?: string;
+      gender?: string;
+      educational_institution?: string;
+      profession?: string;
+      address?: string;
+      province?: string;
+      city?: string;
+      created_at: string;
+      updated_at: string;
+    };
+  };
+  error?: string;
+};
+
+export type LoginRequest = {
+  email: string;
+  password: string;
+};
+
+const baseHeaders: HeadersInit = {
+  "Content-Type": "application/json",
+};
+
+// Auth Functions
+export async function login(
+  req: LoginRequest,
+  signal?: AbortSignal
+): Promise<LoginResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: baseHeaders,
+    body: JSON.stringify(req),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as LoginResponse;
+}
+
+export function saveToken(token: string) {
+  localStorage.setItem("auth_token", token);
+}
+
+export function getToken() {
+  return localStorage.getItem("auth_token");
+}
+
+export function clearToken() {
+  localStorage.removeItem("auth_token");
+}
+
+// User Management Types
+export type User = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  phone_number?: string;
+  date_of_birth?: string;
+  gender?: string;
+  educational_institution?: string;
+  profession?: string;
+  address?: string;
+  province?: string;
+  city?: string;
+  created_at: string;
+  updated_at: string;
+  updated_by?: number;
+};
+
+export type UsersResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    data: User[];
+    page: number;
+    limit: number;
+    total_items: number;
+    total_pages: number;
+  };
+  error?: string;
+};
+
+export type UserDetailResponse = {
+  success: boolean;
+  message: string;
+  data?: User;
+  error?: string;
+};
+
+export type UpdateUserRequest = {
+  name?: string;
+  email?: string;
+  phone_number?: string;
+  gender?: "male" | "female";
+  educational_institution?: string;
+  profession?: string;
+  address?: string;
+  province?: string;
+  city?: string;
+  date_of_birth?: string;
+  role?: "admin" | "mahasiswa";
+};
+
+export type UpdateUserResponse = {
+  success: boolean;
+  message: string;
+  data?: User;
+  error?: string;
+};
+
+// User Management Functions
+export async function getUsers(
+  page: number = 1,
+  limit: number = 10,
+  signal?: AbortSignal
+): Promise<UsersResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/users?page=${page}&limit=${limit}`, {
+    method: "GET",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as UsersResponse;
+}
+
+export async function getUserById(
+  userId: number,
+  signal?: AbortSignal
+): Promise<UserDetailResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
+    method: "GET",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as UserDetailResponse;
+}
+
+export async function updateUser(
+  userId: number,
+  userData: UpdateUserRequest,
+  signal?: AbortSignal
+): Promise<UpdateUserResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
+    method: "PUT",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(userData),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: res.ok, message: await res.text() };
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as UpdateUserResponse;
+}
+
+export const updateUserRole = async (
+  userId: number,
+  role: "admin" | "mahasiswa"
+): Promise<void> => {
+  const token = getToken();
+  if (!token) {
+    throw new Error("Token tidak ditemukan");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/users/${userId}/role`, {
+    method: "PUT",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ role }),
+  });
+
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+    const errorData = isJson
+      ? await res.json()
+      : { success: false, message: await res.text() };
+    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+  }
+};
+
+export const deleteUser = async (userId: number): Promise<void> => {
+  const token = getToken();
+  if (!token) {
+    throw new Error("Token tidak ditemukan");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
+    method: "DELETE",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+    const errorData = isJson
+      ? await res.json()
+      : { success: false, message: await res.text() };
+    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+  }
+};
+
+// Kelas Management Types
+export type Kelas = {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+};
+
+export type KelasResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    data: Kelas[];
+    page: number;
+    limit: number;
+    total_items: number;
+    total_pages: number;
+  };
+  error?: string;
+};
+
+export type KelasDetailResponse = {
+  success: boolean;
+  message: string;
+  data?: Kelas;
+  error?: string;
+};
+
+export type CreateKelasRequest = {
+  name: string;
+  description: string;
+  price: number;
+};
+
+export type CreateKelasResponse = {
+  success: boolean;
+  message: string;
+  data?: Kelas;
+  error?: string;
+};
+
+export type UpdateKelasRequest = {
+  name: string;
+  description: string;
+  price: number;
+};
+
+export type UpdateKelasResponse = {
+  success: boolean;
+  message: string;
+  data?: Kelas;
+  error?: string;
+};
+
+// Kelas Management Functions
+export async function getKelas(
+  page: number = 1,
+  limit: number = 10,
+  signal?: AbortSignal
+): Promise<KelasResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/kelas?page=${page}&limit=${limit}`, {
+    method: "GET",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as KelasResponse;
+}
+
+export async function getKelasById(
+  kelasId: number,
+  signal?: AbortSignal
+): Promise<KelasDetailResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/kelas/${kelasId}`, {
+    method: "GET",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as KelasDetailResponse;
+}
+
+export async function createKelas(
+  kelasData: CreateKelasRequest,
+  signal?: AbortSignal
+): Promise<CreateKelasResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/kelas`, {
+    method: "POST",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(kelasData),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: res.ok, message: await res.text() };
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as CreateKelasResponse;
+}
+
+export async function updateKelas(
+  kelasId: number,
+  kelasData: UpdateKelasRequest,
+  signal?: AbortSignal
+): Promise<UpdateKelasResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/kelas/${kelasId}`, {
+    method: "PUT",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(kelasData),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: res.ok, message: await res.text() };
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as UpdateKelasResponse;
+}
+
+export async function deleteKelas(kelasId: number): Promise<void> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("Token tidak ditemukan");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/kelas/${kelasId}`, {
+    method: "DELETE",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+    const errorData = isJson
+      ? await res.json()
+      : { success: false, message: await res.text() };
+    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+  }
+}
+
+// Paket Management Types
+export type Paket = {
+  id: number;
+  name: string;
+  description: string;
+  duration: number;
+  total_questions: number;
+};
+
+export type PaketsResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    data: Paket[];
+    page: number;
+    limit: number;
+    total_items: number;
+    total_pages: number;
+  };
+  error?: string;
+};
+
+export type PaketDetailResponse = {
+  success: boolean;
+  message: string;
+  data?: Paket;
+  error?: string;
+};
+
+export type CreatePaketPayload = {
+  name: string;
+  description: string;
+  duration: number;
+};
+
+export type CreatePaketResponse = {
+  success: boolean;
+  message: string;
+  data?: Paket;
+  error?: string;
+};
+
+export type UpdatePaketPayload = {
+  name: string;
+  description: string;
+  duration: number;
+};
+
+export type UpdatePaketResponse = {
+  success: boolean;
+  message: string;
+  data?: Paket;
+  error?: string;
+};
+
+export type PaketsByKelasResponse = {
+  success: boolean;
+  message: string;
+  data?: Paket[];
+  error?: string;
+};
+
+export type AssignPaketRequest = {
+  kelas_id: number;
+  paket_id: number;
+};
+
+export type AssignPaketResponse = {
+  success: boolean;
+  message: string;
+};
+
+// Paket Management Functions
+export async function getPakets(
+  page: number = 1,
+  limit: number = 10,
+  signal?: AbortSignal
+): Promise<PaketsResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(
+    `${API_BASE_URL}/pakets?page=${page}&limit=${limit}`,
+    {
+      method: "GET",
+      headers: {
+        ...baseHeaders,
+        Authorization: `Bearer ${token}`,
+      },
+      signal,
+    }
+  );
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as PaketsResponse;
+}
+
+export async function getPaketById(
+  paketId: number,
+  signal?: AbortSignal
+): Promise<PaketDetailResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/pakets/${paketId}`, {
+    method: "GET",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as PaketDetailResponse;
+}
+
+export async function getAllPakets(
+  signal?: AbortSignal
+): Promise<PaketsResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/pakets?page=1&limit=100`, {
+    method: "GET",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as PaketsResponse;
+}
+
+export async function createPaket(
+  paketData: CreatePaketPayload,
+  signal?: AbortSignal
+): Promise<CreatePaketResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/pakets`, {
+    method: "POST",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(paketData),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: res.ok, message: await res.text() };
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as CreatePaketResponse;
+}
+
+export async function updatePaket(
+  paketId: number,
+  paketData: UpdatePaketPayload,
+  signal?: AbortSignal
+): Promise<UpdatePaketResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/pakets/${paketId}`, {
+    method: "PUT",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(paketData),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: res.ok, message: await res.text() };
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as UpdatePaketResponse;
+}
+
+// ✅ DELETE PAKET FEATURE - SUDAH ADA DAN BERFUNGSI!
+export async function deletePaket(paketId: number): Promise<void> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("Token tidak ditemukan");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/pakets/${paketId}`, {
+    method: "DELETE",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+    const errorData = isJson
+      ? await res.json()
+      : { success: false, message: await res.text() };
+    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+  }
+}
+
+export async function getPaketsByKelas(
+  kelasId: number,
+  signal?: AbortSignal
+): Promise<PaketsByKelasResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/kelas/${kelasId}/pakets`, {
+    method: "GET",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as PaketsByKelasResponse;
+}
+
+export async function assignPaketToKelas(
+  req: AssignPaketRequest,
+  signal?: AbortSignal
+): Promise<AssignPaketResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/kelas/assign-paket`, {
+    method: "POST",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(req),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: res.ok, message: await res.text() };
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as AssignPaketResponse;
+}
+
+// Soal Management Types
+export type PilihanJawaban = {
+  id: number;
+  soal_id: number;
+  option_text: string;
+  is_correct: boolean;
+};
+
+export type Soal = {
+  id: number;
+  question: string;
+  explanation: string;
+  pilihan_jawaban: PilihanJawaban[];
+};
+
+export type SoalsByPaketResponse = {
+  success: boolean;
+  message: string;
+  data?: Soal[];
+  error?: string;
+};
+
+export type SoalsResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    data: Soal[];
+    page: number;
+    limit: number;
+    total_items: number;
+    total_pages: number;
+  };
+  error?: string;
+};
+
+export type AssignSoalRequest = {
+  paket_id: number;
+  soal_id: number;
+};
+
+export type AssignSoalResponse = {
+  success: boolean;
+  message: string;
+};
+
+export type RemoveSoalRequest = {
+  paket_id: number;
+  soal_id: number;
+};
+
+export type RemoveSoalResponse = {
+  success: boolean;
+  message: string;
+};
+
+// Soal Management Functions
+export async function getSoalsByPaket(
+  paketId: number,
+  signal?: AbortSignal
+): Promise<SoalsByPaketResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/pakets/${paketId}/soals`, {
+    method: "GET",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: false, message: await res.text() };
+  return data as SoalsByPaketResponse;
+}
+
+export async function getAllSoals(signal?: AbortSignal): Promise<SoalsResponse> {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/soals`, {
+    signal,
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Gagal mengambil data soal");
+  }
+  return response.json();
+}
+
+export async function createSoal(soalData: {
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_answer: string;
+}): Promise<ApiResponse> {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/soals`, {
+    method: "POST",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(soalData),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || "Gagal membuat soal");
+  }
+  return data;
+}
+
+export async function assignSoalToPaket(
+  req: AssignSoalRequest,
+  signal?: AbortSignal
+): Promise<AssignSoalResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/pakets/assign-soal`, {
+    method: "POST",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(req),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: res.ok, message: await res.text() };
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as AssignSoalResponse;
+}
+
+export async function removeSoalFromPaket(
+  req: RemoveSoalRequest,
+  signal?: AbortSignal
+): Promise<RemoveSoalResponse> {
+  const token = getToken();
+  if (!token) {
+    throw new Error("No authentication token");
+  }
+
+  const res = await fetch(`${API_BASE_URL}/pakets/remove-soal`, {
+    method: "DELETE",
+    headers: {
+      ...baseHeaders,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(req),
+    signal,
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson
+    ? await res.json()
+    : { success: res.ok, message: await res.text() };
+
+  if (!res.ok) {
+    throw new Error(data.message || `HTTP error! status: ${res.status}`);
+  }
+
+  return data as RemoveSoalResponse;
+}
