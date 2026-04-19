@@ -10,6 +10,7 @@ interface CreatePaketModalProps {
 }
 
 interface PaketFormData {
+  kode_paket?: string;
   name: string;
   description: string;
   duration: number; // minutes
@@ -21,16 +22,21 @@ const CreatePaketModal: React.FC<CreatePaketModalProps> = ({
   onSubmit,
 }) => {
   const [formData, setFormData] = useState<PaketFormData>({
+    kode_paket: "",
     name: "",
     description: "",
     duration: 60,
   });
 
-  const [errors, setErrors] = useState<Partial<Record<keyof PaketFormData, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof PaketFormData, string>>
+  >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-
-  const handleInputChange = (field: keyof PaketFormData, value: string | number) => {
+  const handleInputChange = (
+    field: keyof PaketFormData,
+    value: string | number,
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
     // Clear error when user starts typing
@@ -82,6 +88,7 @@ const CreatePaketModal: React.FC<CreatePaketModalProps> = ({
 
   const handleClose = () => {
     setFormData({
+      kode_paket: "",
       name: "",
       description: "",
       duration: 60,
@@ -121,6 +128,15 @@ const CreatePaketModal: React.FC<CreatePaketModalProps> = ({
       <form onSubmit={handleSubmit} className="space-y-6">
         <FormGroup>
           <FormInput
+            label="Kode Paket (opsional)"
+            placeholder="Contoh: PKT-001"
+            value={formData.kode_paket || ""}
+            onChange={(e) => handleInputChange("kode_paket", e.target.value)}
+            help="Kosongkan jika ingin otomatis dari sistem"
+          />
+        </FormGroup>
+        <FormGroup>
+          <FormInput
             label="Nama Paket"
             placeholder="Contoh: Try Out Komprehensif UKOM"
             value={formData.name}
@@ -149,7 +165,9 @@ const CreatePaketModal: React.FC<CreatePaketModalProps> = ({
             min={1}
             placeholder="120"
             value={formData.duration}
-            onChange={(e) => handleInputChange("duration", Number(e.target.value))}
+            onChange={(e) =>
+              handleInputChange("duration", Number(e.target.value))
+            }
             error={errors.duration}
             required
             help="Masukkan durasi ujian dalam satuan menit"

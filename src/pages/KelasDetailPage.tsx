@@ -1,10 +1,12 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import * as api from "../lib/api";
-import PageHeader from "../components/PageHeader";
-import Section from "../components/Section";
+import PageHeader from "../components/PageHeader.tsx";
+import Section from "../components/Section.tsx";
+import { useToast } from "../utils/useToast";
 
 export default function KelasDetailPage() {
+  const { showSuccess, showError } = useToast();
   const { id } = useParams<{ id: string }>();
   const [kelas, setKelas] = useState<api.Kelas | null>(null);
   const [assignedPakets, setAssignedPakets] = useState<api.Paket[]>([]);
@@ -12,8 +14,12 @@ export default function KelasDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [selectedPaketId, setSelectedPaketId] = useState<number | null>(null);
+  const [selectedPaketIds, setSelectedPaketIds] = useState<number[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [paketSearchQuery, setPaketSearchQuery] = useState("");
+  const [removingPaketId, setRemovingPaketId] = useState<number | null>(null);
+  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
+  const [paketToRemove, setPaketToRemove] = useState<api.Paket | null>(null);
 
   const fetchDetails = useCallback(async () => {
     if (!id) return;
@@ -55,12 +61,14 @@ export default function KelasDetailPage() {
       if (response.success && response.data) {
         // Filter out pakets that are already assigned to this class
         const unassigned = response.data.data.filter(
-          (p: api.Paket) => !assignedPakets.some((ap) => ap.id === p.id)
+          (p: api.Paket) => !assignedPakets.some((ap) => ap.id === p.id),
         );
         setAllPakets(unassigned);
       } else {
         alert(response.message || "Gagal memuat daftar paket.");
       }
+      setSelectedPaketIds([]);
+      setPaketSearchQuery("");
       setIsAssignModalOpen(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Terjadi kesalahan.";
@@ -70,25 +78,29 @@ export default function KelasDetailPage() {
 
   const handleAssignPaket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPaketId || !id) {
+    if (!id) return;
+
+    if (selectedPaketIds.length === 0) {
       alert("Silakan pilih paket terlebih dahulu.");
       return;
     }
 
     setIsAssigning(true);
     try {
-      const response = await api.assignPaketToKelas({
-        kelas_id: parseInt(id),
-        paket_id: selectedPaketId,
-      });
+      for (const paketId of selectedPaketIds) {
+        const response = await api.assignPaketToKelas({
+          kelas_id: parseInt(id),
+          paket_id: paketId,
+        });
 
-      if (response.success) {
-        setIsAssignModalOpen(false);
-        setSelectedPaketId(null);
-        await fetchDetails(); // Refresh the list of assigned pakets
-      } else {
-        alert(response.message || "Gagal menugaskan paket.");
+        if (!response.success) {
+          throw new Error(response.message || "Gagal menugaskan paket.");
+        }
       }
+
+      setIsAssignModalOpen(false);
+      setSelectedPaketIds([]);
+      await fetchDetails(); // Refresh the list of assigned pakets
     } catch (err) {
       const message = err instanceof Error ? err.message : "Terjadi kesalahan.";
       alert(message);
@@ -96,6 +108,61 @@ export default function KelasDetailPage() {
       setIsAssigning(false);
     }
   };
+
+  const togglePaketSelection = (paketId: number) => {
+    setSelectedPaketIds((prev) =>
+      prev.includes(paketId)
+        ? prev.filter((id) => id !== paketId)
+        : [...prev, paketId],
+    );
+  };
+
+  const handleRemovePaket = (paket: api.Paket) => {
+    setPaketToRemove(paket);
+    setIsRemoveModalOpen(true);
+  };
+
+  const confirmRemovePaket = async () => {
+    if (!id || !paketToRemove) return;
+    const kelasId = Number(id);
+    if (!Number.isFinite(kelasId)) {
+      showError("ID kelas tidak valid.");
+      return;
+    }
+
+    setRemovingPaketId(paketToRemove.id);
+    try {
+      const response = await api.removePaketFromKelas({
+        kelas_id: kelasId,
+        paket_id: paketToRemove.id,
+      });
+
+      if (response?.success === false) {
+        throw new Error(response.message || "Gagal menghapus paket.");
+      }
+      setAssignedPakets((prev) =>
+        prev.filter((p) => p.id !== paketToRemove.id),
+      );
+      showSuccess("Paket berhasil dihapus dari kelas.");
+      setIsRemoveModalOpen(false);
+      setPaketToRemove(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Terjadi kesalahan.";
+      showError(message);
+    } finally {
+      setRemovingPaketId(null);
+    }
+  };
+
+  const filteredPakets = useMemo(() => {
+    const query = paketSearchQuery.trim().toLowerCase();
+    if (!query) return allPakets;
+    return allPakets.filter((paket) => {
+      const name = paket.name.toLowerCase();
+      const kode = (paket.kode_paket || "").toLowerCase();
+      return `${name} ${kode}`.includes(query);
+    });
+  }, [allPakets, paketSearchQuery]);
 
   if (loading) {
     return <div className="p-6">Memuat...</div>;
@@ -132,7 +199,10 @@ export default function KelasDetailPage() {
             </svg>
           </Link>
         </div>
-        <PageHeader title="Detail Kelas" description={`ID Kelas #${kelas.id}`} />
+        <PageHeader
+          title="Detail Kelas"
+          description={`ID Kelas #${kelas.id}`}
+        />
 
         <Section>
           <div className="card mb-6">
@@ -140,6 +210,9 @@ export default function KelasDetailPage() {
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 {kelas.name}
               </h2>
+              <p className="text-sm text-gray-500 mb-2">
+                Kode Kelas: {kelas.kode_kelas || "-"}
+              </p>
               <p className="text-gray-600 mb-4">{kelas.description}</p>
               <p className="text-lg font-semibold text-gray-800">
                 Harga: Rp{kelas.price.toLocaleString("id-ID")}
@@ -162,11 +235,27 @@ export default function KelasDetailPage() {
                   <table className="min-w-full table-auto">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deskripsi</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durasi (menit)</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah Soal</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          ID
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Kode Paket
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Nama
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Deskripsi
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Durasi (menit)
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Jumlah Soal
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Aksi
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -175,15 +264,38 @@ export default function KelasDetailPage() {
                           key={paket.id}
                           className={`${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-50 transition-colors`}
                         >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{paket.id}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{paket.name}</td>
-                          <td className="px-6 py-4 text-sm text-gray-700">{paket.description}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            {paket.id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            {paket.kode_paket || "-"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {paket.name}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            {paket.description}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary-100 text-primary-700 text-xs font-semibold">
                               {paket.duration} menit
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{paket.total_questions}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            {paket.total_questions}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePaket(paket)}
+                              className="btn btn-danger btn-sm"
+                              disabled={removingPaketId === paket.id}
+                            >
+                              {removingPaketId === paket.id
+                                ? "Menghapus..."
+                                : "Hapus"}
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -202,51 +314,141 @@ export default function KelasDetailPage() {
       </div>
 
       {isAssignModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="card w-full max-w-md mx-auto">
             <div className="card-body">
-            <h2 className="text-xl font-bold mb-6">Tambahkan Paket ke Kelas</h2>
-            <form onSubmit={handleAssignPaket}>
-              <div className="mb-6">
-                <label htmlFor="paket" className="label">
-                  Pilih Paket
-                </label>
-                <select
-                  id="paket"
-                  value={selectedPaketId ?? ""}
-                  onChange={(e) => setSelectedPaketId(parseInt(e.target.value))}
-                  className="input w-full"
-                  required
-                  disabled={isAssigning}
-                >
-                  <option value="" disabled>
-                    Pilih sebuah paket...
-                  </option>
-                  {allPakets.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <h2 className="text-xl font-bold mb-6">
+                Tambahkan Paket ke Kelas
+              </h2>
+              <form onSubmit={handleAssignPaket}>
+                <div className="mb-6">
+                  <label htmlFor="paket" className="label">
+                    Pilih Paket
+                  </label>
+                  <input
+                    type="text"
+                    className="input w-full mb-3"
+                    placeholder="Cari paket..."
+                    value={paketSearchQuery}
+                    onChange={(e) => setPaketSearchQuery(e.target.value)}
+                    disabled={isAssigning}
+                  />
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                    <span>{selectedPaketIds.length} paket dipilih</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaketIds([])}
+                      className="text-primary-700 hover:text-primary-800"
+                      disabled={isAssigning || selectedPaketIds.length === 0}
+                    >
+                      Bersihkan
+                    </button>
+                  </div>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden max-h-72 overflow-y-auto">
+                    {filteredPakets.map((paket) => {
+                      const isSelected = selectedPaketIds.includes(paket.id);
+                      return (
+                        <label
+                          key={paket.id}
+                          className={`flex gap-3 p-3 cursor-pointer border-b border-gray-200 last:border-b-0 transition-colors ${
+                            isSelected ? "bg-primary-100" : "bg-white"
+                          } hover:bg-gray-50`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={isSelected}
+                            onChange={() => togglePaketSelection(paket.id)}
+                            disabled={isAssigning}
+                          />
+                          <div className="flex-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {paket.name}
+                              </p>
+                              {paket.kode_paket && (
+                                <span className="text-xs text-gray-500">
+                                  {paket.kode_paket}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {paket.description || "Tanpa deskripsi"}
+                            </p>
+                            <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
+                              <span>Durasi: {paket.duration} menit</span>
+                              <span>Soal: {paket.total_questions}</span>
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {filteredPakets.length === 0 && (
+                    <p className="helper-text text-gray-500 mt-2">
+                      Tidak ada paket yang cocok dengan pencarian.
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAssignModalOpen(false);
+                      setSelectedPaketIds([]);
+                    }}
+                    className="btn btn-secondary"
+                    disabled={isAssigning}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={isAssigning || selectedPaketIds.length === 0}
+                  >
+                    {isAssigning ? "Menambahkan..." : "Tambahkan"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isRemoveModalOpen && paketToRemove && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="card w-full max-w-md mx-auto">
+            <div className="card-body">
+              <h2 className="text-xl font-bold mb-2">Hapus Paket</h2>
+              <p className="text-sm text-gray-600 mb-6">
+                Paket{" "}
+                <span className="font-semibold">{paketToRemove.name}</span> akan
+                dihapus dari kelas ini. Tindakan ini tidak bisa dibatalkan.
+              </p>
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsAssignModalOpen(false)}
+                  onClick={() => {
+                    if (!removingPaketId) {
+                      setIsRemoveModalOpen(false);
+                      setPaketToRemove(null);
+                    }
+                  }}
                   className="btn btn-secondary"
-                  disabled={isAssigning}
+                  disabled={!!removingPaketId}
                 >
                   Batal
                 </button>
                 <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={isAssigning}
+                  type="button"
+                  onClick={confirmRemovePaket}
+                  className="btn btn-danger"
+                  disabled={!!removingPaketId}
                 >
-                  {isAssigning ? "Menambahkan..." : "Tambahkan"}
+                  {removingPaketId ? "Menghapus..." : "Hapus"}
                 </button>
               </div>
-            </form>
             </div>
           </div>
         </div>

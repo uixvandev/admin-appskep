@@ -11,7 +11,9 @@ import TambahSoalPage from "./pages/TambahSoalPage";
 import QuestionsPage from "./pages/QuestionsPage";
 import OrdersPage from "./pages/OrdersPage";
 import Dashboard from "./pages/Dashboard";
-import SidebarLayout from "./components/SidebarLayout";
+import KategoriSoalPage from "./pages/KategoriSoalPage";
+import SidebarLayout from "./components/SidebarLayout.tsx";
+import ToastProvider from "./components/Toast.tsx";
 import { getToken } from "./lib/api";
 
 function App() {
@@ -19,6 +21,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ToastProvider />
       <Routes>
         <Route
           path="/"
@@ -46,6 +49,7 @@ function App() {
           <Route path="/soal-ujian" element={<QuestionsPage />} />
           <Route path="/questions" element={<QuestionsPage />} />
           <Route path="/questions/new" element={<TambahSoalPage />} />
+          <Route path="/kategori-soal" element={<KategoriSoalPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           {/* Fallback for unknown protected routes */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

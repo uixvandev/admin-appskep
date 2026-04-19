@@ -13,7 +13,7 @@ export default function ReportsPage() {
     <div>
       <PageHeader
         title="Laporan"
-        description="Lihat statistik ujian, laporan hasil ujian, dan analisis kinerja peserta."
+        description="Detail statistik ujian, laporan hasil ujian, dan analisis kinerja peserta."
       />
 
       <div className="text-center py-16 card">
@@ -38,4 +38,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-

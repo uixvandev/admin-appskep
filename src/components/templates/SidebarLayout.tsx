@@ -13,7 +13,7 @@ import {
   LogOut,
   User,
 } from "lucide-react";
-import { clearToken } from "../lib/api";
+import { clearToken } from "../../lib/api";
 
 interface SidebarLayoutProps {
   children?: ReactNode;

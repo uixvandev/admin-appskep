@@ -28,13 +28,19 @@ export default function LoginPage() {
     try {
       const res = await login({ email, password });
       if (res.success && res.data?.token) {
+        if (res.data.user?.role !== "admin") {
+          setError("Akses ditolak! Anda bukan admin.");
+          setLoading(false);
+          return;
+        }
         saveToken(res.data.token);
         window.location.href = "/dashboard";
       } else {
         setError(res.message || res.error || "Login failed.");
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "A network error occurred.";
+      const message =
+        err instanceof Error ? err.message : "A network error occurred.";
       setError(message);
     } finally {
       setLoading(false);
@@ -45,9 +51,10 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md p-8 space-y-6">
         <div className="text-center">
+          <img className="h-56 mx-auto" src="/src/assets/logo.png" alt="" />
           <h1 className="text-3xl font-bold text-gray-900">Selamat Datang</h1>
           <p className="mt-2 text-gray-600">
-            Masuk untuk melanjutkan ke Admin Ukom
+            Masuk untuk melanjutkan ke dasbor admin UKOM.
           </p>
         </div>
 
@@ -71,7 +78,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="anda@email.com"
+                placeholder="admin@appskep.com"
                 autoComplete="off"
                 required
                 className="input w-full mt-1"
@@ -88,7 +95,7 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Masukkan kata sandi"
                   autoComplete="off"
                   required
                   className="input w-full pr-10"
@@ -150,7 +157,7 @@ export default function LoginPage() {
           </form>
         </div>
         <p className="text-sm text-center text-gray-500">
-          © {new Date().getFullYear()} Admin Ukom. Hak cipta dilindungi.
+          © {new Date().getFullYear()} Appskep. Hak cipta dilindungi.
         </p>
       </div>
     </div>

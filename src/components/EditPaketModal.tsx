@@ -6,6 +6,7 @@ import Alert from "./Alert";
 
 interface PaketData {
   id: number;
+  kode_paket?: string;
   name: string;
   description: string;
   duration: number;
@@ -29,7 +30,9 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
   onDelete,
 }) => {
   const [formData, setFormData] = useState<Partial<PaketData>>({});
-  const [errors, setErrors] = useState<Partial<Record<"name" | "description" | "duration", string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<"name" | "description" | "duration" | "kode_paket", string>>
+  >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -39,6 +42,7 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
   useEffect(() => {
     if (paket) {
       setFormData({
+        kode_paket: paket.kode_paket || "",
         name: paket.name,
         description: paket.description,
         duration: paket.duration,
@@ -50,8 +54,8 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
   }, [paket]);
 
   const handleInputChange = (
-    field: "name" | "description" | "duration",
-    value: string | number
+    field: "name" | "description" | "duration" | "kode_paket",
+    value: string | number,
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
@@ -62,7 +66,9 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<Record<"name" | "description" | "duration", string>> = {};
+    const newErrors: Partial<
+      Record<"name" | "description" | "duration", string>
+    > = {};
 
     if (!formData.name?.trim()) {
       newErrors.name = "Nama paket wajib diisi";
@@ -135,7 +141,7 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Edit Paket Ujian"
+      title="Ubah Paket Ujian"
       size="md"
       variant="default"
       footer={
@@ -218,6 +224,15 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
       <form onSubmit={handleSubmit} className="space-y-6">
         <FormGroup>
           <FormInput
+            label="Kode Paket (opsional)"
+            placeholder="Contoh: PKT-001"
+            value={formData.kode_paket || ""}
+            onChange={(e) => handleInputChange("kode_paket", e.target.value)}
+            help="Kosongkan jika ingin otomatis dari sistem"
+          />
+        </FormGroup>
+        <FormGroup>
+          <FormInput
             label="Nama Paket"
             placeholder="Contoh: Try Out Komprehensif UKOM"
             value={formData.name || ""}
@@ -246,7 +261,9 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
             min={1}
             placeholder="120"
             value={formData.duration ?? 60}
-            onChange={(e) => handleInputChange("duration", Number(e.target.value))}
+            onChange={(e) =>
+              handleInputChange("duration", Number(e.target.value))
+            }
             error={errors.duration}
             required
             help="Masukkan durasi ujian dalam satuan menit"

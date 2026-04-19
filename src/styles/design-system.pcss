@@ -1,6 +1,6 @@
 /* Centralized component-level styles built with Tailwind utilities (PostCSS) */
-/* This file is imported in src/main.tsx after globals.css and before index.css */
-@tailwind components;
+/* This file is imported in src/main.tsx after globals.css */
+@reference "tailwindcss";
 
 @layer components {
   /* Buttons */
@@ -8,7 +8,14 @@
     @apply inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors duration-150 ease-in-out hover:bg-gray-50 active:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply border-transparent bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 hover:text-white focus-visible:text-white visited:text-white;
+    @apply border-transparent hover:text-white focus-visible:text-white visited:text-white;
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+  }
+  .btn-primary:hover {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+    filter: brightness(0.95);
   }
   .btn-secondary {
     @apply border-gray-300 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100;
@@ -29,7 +36,8 @@
     @apply border-transparent bg-transparent text-gray-700 hover:bg-gray-50 active:bg-gray-100;
   }
   .btn-link {
-    @apply border-transparent bg-transparent p-0 text-primary-600 hover:text-primary-700 hover:underline;
+    @apply border-transparent bg-transparent p-0 hover:underline;
+    color: var(--accent);
   }
   .btn-icon {
     @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50;
@@ -37,13 +45,17 @@
 
   /* Cards */
   .card {
-    @apply rounded-2xl border border-gray-200 bg-white shadow-sm;
+    @apply rounded-2xl border shadow-sm;
+    background-color: var(--surface);
+    border-color: var(--border);
   }
   .card-body {
     @apply p-6;
   }
   .card-footer {
-    @apply rounded-b-2xl border-t border-gray-200 bg-gray-50 p-4;
+    @apply rounded-b-2xl border-t p-4;
+    background-color: color-mix(in oklab, var(--surface) 92%, var(--accent) 8%);
+    border-color: var(--border);
   }
 
   /* Tables */
@@ -55,11 +67,11 @@
   .table thead th {
     @apply bg-gray-50 px-4 py-3 text-left text-gray-700;
     font-weight: 600;
-    border-bottom: 1px solid theme('colors.gray.200');
+    border-bottom: 1px solid var(--border);
   }
   .table tbody td {
     @apply px-4 py-3 text-gray-700;
-    border-bottom: 1px solid theme('colors.gray.100');
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, white 40%);
   }
   .table tbody tr:hover {
     @apply bg-gray-50/70;
@@ -99,13 +111,22 @@
     @apply block text-sm font-medium text-gray-700;
   }
   .input {
-    @apply w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm outline-none transition-shadow placeholder:text-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
+    @apply w-full rounded-lg border px-3.5 py-2 text-sm outline-none transition-shadow placeholder:text-gray-400;
+    background-color: var(--field-background);
+    color: var(--field-foreground);
+    border-color: var(--field-border);
   }
   .textarea {
-    @apply w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm outline-none transition-shadow placeholder:text-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
+    @apply w-full rounded-lg border px-3.5 py-2 text-sm outline-none transition-shadow placeholder:text-gray-400;
+    background-color: var(--field-background);
+    color: var(--field-foreground);
+    border-color: var(--field-border);
   }
   .select {
-    @apply w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
+    @apply w-full rounded-lg border px-3.5 py-2 text-sm outline-none;
+    background-color: var(--field-background);
+    color: var(--field-foreground);
+    border-color: var(--field-border);
   }
   .input-error {
     @apply border-red-500 focus:border-red-500 focus:ring-red-500/20;
@@ -116,12 +137,15 @@
 
   /* Modern unified input used by FormInput, FormTextarea, FormSelect */
   .form-input {
-    @apply rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none;
+    @apply rounded-lg border px-3.5 py-2 text-sm placeholder:text-gray-400 outline-none;
     @apply transition-colors transition-shadow duration-150 ease-in-out;
     @apply hover:border-gray-400;
-    @apply focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:shadow-sm;
+    @apply focus:shadow-sm;
     @apply disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed;
     @apply read-only:bg-gray-50 read-only:text-gray-600;
+    background-color: var(--field-background);
+    color: var(--field-foreground);
+    border-color: var(--field-border);
   }
   .form-input.error {
     @apply border-red-500 focus:border-red-500 focus:ring-red-500/20;
@@ -138,7 +162,7 @@
   .form-help {
     @apply text-xs text-gray-500;
   }
-  
+
   /* Alerts */
   .alert {
     @apply flex items-start gap-3 rounded-xl border p-4 text-sm;
@@ -170,7 +194,7 @@
 
   /* Modals */
   .modal-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm;
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4;
   }
   .modal {
     @apply w-full rounded-2xl border border-gray-200 bg-white shadow-2xl;
@@ -196,17 +220,111 @@
 
   /* Smooth modal animations */
   @keyframes overlayIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes modalIn {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
   .overlay-enter {
     animation: overlayIn 150ms ease-out;
   }
   .modal-enter {
     animation: modalIn 200ms ease-out;
+  }
+}
+
+@layer utilities {
+  .bg-surface {
+    background-color: var(--surface);
+  }
+  .bg-surface-secondary {
+    background-color: var(--surface-secondary);
+  }
+  .text-foreground {
+    color: var(--foreground);
+  }
+  .text-muted {
+    color: var(--muted);
+  }
+  .border-border {
+    border-color: var(--border);
+  }
+  .bg-primary {
+    background-color: var(--accent);
+  }
+  .bg-primary-100 {
+    background-color: color-mix(in oklab, var(--accent) 12%, white 88%);
+  }
+  .bg-primary-500 {
+    background-color: var(--accent);
+  }
+  .bg-primary-600 {
+    background-color: color-mix(in oklab, var(--accent) 85%, black 15%);
+  }
+  .bg-primary-700 {
+    background-color: color-mix(in oklab, var(--accent) 70%, black 30%);
+  }
+  .bg-primary\/10 {
+    background-color: color-mix(in oklab, var(--accent) 10%, transparent);
+  }
+  .text-primary {
+    color: var(--accent);
+  }
+  .text-primary-500 {
+    color: var(--accent);
+  }
+  .text-primary-600 {
+    color: color-mix(in oklab, var(--accent) 85%, black 15%);
+  }
+  .text-primary-700 {
+    color: color-mix(in oklab, var(--accent) 70%, black 30%);
+  }
+  .text-primary-900 {
+    color: color-mix(in oklab, var(--accent) 50%, black 50%);
+  }
+  .text-primary\/80 {
+    color: color-mix(in oklab, var(--accent) 80%, transparent);
+  }
+  .border-primary {
+    border-color: var(--accent);
+  }
+  .border-primary-600 {
+    border-color: color-mix(in oklab, var(--accent) 85%, black 15%);
+  }
+  .border-primary-700 {
+    border-color: color-mix(in oklab, var(--accent) 70%, black 30%);
+  }
+  .focus\:border-primary-500:focus {
+    border-color: var(--accent);
+  }
+  .focus\:ring-primary-500:focus {
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 30%, transparent);
+  }
+  .hover\:text-primary:hover {
+    color: var(--accent);
+  }
+  .hover\:text-primary-600:hover {
+    color: color-mix(in oklab, var(--accent) 85%, black 15%);
+  }
+  .hover\:text-primary-900:hover {
+    color: color-mix(in oklab, var(--accent) 50%, black 50%);
+  }
+  .hover\:text-primary\/80:hover {
+    color: color-mix(in oklab, var(--accent) 80%, transparent);
+  }
+  .group:hover .group-hover\:text-primary\/80 {
+    color: color-mix(in oklab, var(--accent) 80%, transparent);
   }
 }

@@ -12,7 +12,7 @@ import {
 } from "echarts/components";
 import { LabelLayout, UniversalTransition } from "echarts/features";
 import { CanvasRenderer } from "echarts/renderers";
-import PageHeader from "../components/PageHeader";
+import PageHeader from "../components/PageHeader.tsx";
 
 // Register the required components
 echarts.use([
@@ -126,28 +126,28 @@ export default function Dashboard() {
               value: totalUsers,
               icon: Users,
               link: "/users",
-              color: "bg-primary-500",
+              color: "#00a1f5",
             },
             {
               name: "Paket Ujian",
               value: totalPakets,
               icon: Archive,
               link: "/packages",
-              color: "bg-primary-600",
+              color: "#008fd9",
             },
             {
               name: "Soal Ujian",
               value: totalSoals,
               icon: HelpCircle,
               link: "/questions",
-              color: "bg-primary-400",
+              color: "#19b6ff",
             },
             {
               name: "Total Orders",
               value: totalOrders,
               icon: ShoppingCart,
               link: "/orders",
-              color: "bg-primary-700",
+              color: "#007bb8",
             },
           ]);
 
@@ -162,28 +162,28 @@ export default function Dashboard() {
               value: 0,
               icon: Users,
               link: "/users",
-              color: "bg-primary-500",
+              color: "#00a1f5",
             },
             {
               name: "Paket Ujian",
               value: 0,
               icon: Archive,
               link: "/packages",
-              color: "bg-primary-600",
+              color: "#008fd9",
             },
             {
               name: "Soal Ujian",
               value: 0,
               icon: HelpCircle,
               link: "/questions",
-              color: "bg-primary-400",
+              color: "#19b6ff",
             },
             {
               name: "Total Orders",
               value: 0,
               icon: ShoppingCart,
               link: "/orders",
-              color: "bg-primary-700",
+              color: "#007bb8",
             },
           ]);
 
@@ -200,8 +200,6 @@ export default function Dashboard() {
       isMounted = false;
     };
   }, [processRevenueData]);
-
-  
 
   // Generate default revenue data when no orders available
   function generateDefaultRevenueData() {
@@ -240,11 +238,15 @@ export default function Dashboard() {
         tooltip: {
           trigger: "axis",
           formatter: function (
-            params: Array<{ value: number; name: string }> | { value: number; name: string }
+            params:
+              | Array<{ value: number; name: string }>
+              | { value: number; name: string },
           ) {
             const p = Array.isArray(params) ? params[0] : params;
             const value = p.value;
-            return `${p.name}<br/>Pendapatan: Rp ${value.toLocaleString("id-ID")}`;
+            return `${p.name}<br/>Pendapatan: Rp ${value.toLocaleString(
+              "id-ID",
+            )}`;
           },
         },
         grid: {
@@ -278,8 +280,8 @@ export default function Dashboard() {
               return value >= 1000000
                 ? (value / 1000000).toFixed(1) + "M"
                 : value >= 1000
-                ? (value / 1000).toFixed(0) + "K"
-                : value.toString();
+                  ? (value / 1000).toFixed(0) + "K"
+                  : value.toString();
             },
           },
           splitLine: {
@@ -353,61 +355,64 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-        <PageHeader title="Statistik Admin Ukom" />
-        {loading ? (
-          <div className="text-center py-12 text-gray-400">
-            Memuat statistik...
-          </div>
-        ) : (
-          <>
-            <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {stats.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <a
-                    key={item.name}
-                    href={item.link}
-                    className="relative bg-white pt-5 px-4 pb-12 sm:pt-6 sm:px-6 shadow rounded-lg overflow-hidden group hover:shadow-lg transition-shadow"
-                  >
-                    <dt>
-                      <div className={`absolute ${item.color} rounded-md p-3`}>
-                        <Icon
-                          size={24}
-                          className="text-white"
-                          aria-hidden="true"
-                        />
-                      </div>
-                      <p className="ml-16 text-sm font-medium text-gray-500 truncate">
-                        {item.name}
-                      </p>
-                    </dt>
-                    <dd className="ml-16 pb-6 flex items-baseline sm:pb-7">
-                      <p className="text-2xl font-semibold text-gray-900">
-                        {item.value}
-                      </p>
-                    </dd>
-                    <div className="absolute bottom-0 inset-x-0 bg-gray-50 px-4 py-4 sm:px-6">
-                      <div className="text-sm">
-                        <span className="font-medium text-primary group-hover:text-primary/80 cursor-pointer">
-                          Lihat detail
-                        </span>
-                      </div>
+      <PageHeader title="Dashboard" />
+      {loading ? (
+        <div className="text-center py-12 text-gray-400">
+          Memuat statistik...
+        </div>
+      ) : (
+        <>
+          <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((item) => {
+              const Icon = item.icon;
+              return (
+                <a
+                  key={item.name}
+                  href={item.link}
+                  className="relative bg-white pt-5 px-4 pb-12 sm:pt-6 sm:px-6 shadow rounded-lg overflow-hidden group hover:shadow-lg transition-shadow"
+                >
+                  <dt>
+                    <div
+                      className="absolute rounded-md p-3"
+                      style={{ backgroundColor: item.color }}
+                    >
+                      <Icon
+                        size={24}
+                        className="text-white"
+                        aria-hidden="true"
+                      />
                     </div>
-                  </a>
-                );
-              })}
-            </dl>
+                    <p className="ml-16 text-sm font-medium text-gray-500 truncate">
+                      {item.name}
+                    </p>
+                  </dt>
+                  <dd className="ml-16 pb-6 flex items-baseline sm:pb-7">
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {item.value}
+                    </p>
+                  </dd>
+                  <div className="absolute bottom-0 inset-x-0 bg-gray-50 px-4 py-4 sm:px-6">
+                    <div className="text-sm">
+                      <span className="font-medium text-primary group-hover:text-primary/80 cursor-pointer">
+                        Detail
+                      </span>
+                    </div>
+                  </div>
+                </a>
+              );
+            })}
+          </dl>
 
-            {/* Revenue Chart */}
-            <div className="bg-white p-6 rounded-lg shadow">
-              <div
-                ref={chartRef}
-                style={{ width: "100%", height: "400px" }}
-                className="min-h-[400px]"
-              />
-            </div>
-          </>
-        )}
+          {/* Revenue Chart */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div
+              ref={chartRef}
+              style={{ width: "100%", height: "400px" }}
+              className="min-h-[400px]"
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

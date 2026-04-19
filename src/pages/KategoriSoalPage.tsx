@@ -1,29 +1,18 @@
-import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
-import { getKelas, createKelas, updateKelas, deleteKelas } from "../lib/api";
-import type { Kelas, CreateKelasRequest } from "../lib/api";
+import { useCallback, useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader.tsx";
 import Section from "../components/Section.tsx";
 import { useToast } from "../utils/useToast";
+import {
+  createKategoriSoal,
+  deleteKategoriSoal,
+  getKategoriSoals,
+  updateKategoriSoal,
+} from "../lib/api";
+import type { KategoriSoal, CreateKategoriSoalRequest } from "../lib/api";
 
-export default function KelasPage() {
-  type KelasFormState = {
-    kode_kelas: string;
-    name: string;
-    description: string;
-    price: string;
-  };
-
-  type EditKelasFormState = {
-    id: number;
-    kode_kelas?: string | null;
-    name: string;
-    description: string;
-    price: string;
-  };
-
+export default function KategoriSoalPage() {
   const { showSuccess, showError } = useToast();
-  const [kelas, setKelas] = useState<Kelas[]>([]);
+  const [kategoriSoals, setKategoriSoals] = useState<KategoriSoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -31,33 +20,41 @@ export default function KelasPage() {
   const [search, setSearch] = useState("");
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newKelas, setNewKelas] = useState<KelasFormState>({
-    kode_kelas: "",
+  const [newKategori, setNewKategori] = useState<CreateKategoriSoalRequest>({
     name: "",
     description: "",
-    price: "",
   });
   const [isCreating, setIsCreating] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingKelas, setEditingKelas] = useState<EditKelasFormState | null>(
+  const [editingKategori, setEditingKategori] = useState<KategoriSoal | null>(
     null,
   );
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [kelasToDelete, setKelasToDelete] = useState<Kelas | null>(null);
+  const [kategoriToDelete, setKategoriToDelete] = useState<KategoriSoal | null>(
+    null,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchKelas = useCallback(
+  const fetchKategori = useCallback(
     async (currentPage: number = page) => {
       setLoading(true);
+      setError(null);
       try {
-        const response = await getKelas(currentPage);
-        if (response.success && response.data) {
-          setKelas(response.data.data);
-          setTotalPages(response.data.total_pages);
+        const response = await getKategoriSoals(currentPage, 10);
+        if (response?.success && response.data) {
+          const list = Array.isArray(response.data)
+            ? response.data
+            : response.data.data;
+          setKategoriSoals(list || []);
+          if (!Array.isArray(response.data) && response.data.total_pages) {
+            setTotalPages(response.data.total_pages);
+          } else {
+            setTotalPages(1);
+          }
         } else {
-          setError(response.message || "Gagal memuat daftar kelas");
+          setError(response?.message || "Gagal memuat kategori soal.");
         }
       } catch (err) {
         setError((err as Error).message);
@@ -69,99 +66,79 @@ export default function KelasPage() {
   );
 
   useEffect(() => {
-    fetchKelas();
-  }, [fetchKelas]);
+    fetchKategori();
+  }, [fetchKategori]);
 
-  const handleCreateKelas = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
     try {
-      const priceValue = Number(newKelas.price);
-      if (!Number.isFinite(priceValue)) {
-        showError("Harga harus berupa angka.");
-        setIsCreating(false);
-        return;
-      }
-      const payload: CreateKelasRequest = {
-        name: newKelas.name,
-        description: newKelas.description,
-        price: priceValue,
-        ...(newKelas.kode_kelas?.trim()
-          ? { kode_kelas: newKelas.kode_kelas.trim() }
+      const payload: CreateKategoriSoalRequest = {
+        name: newKategori.name.trim(),
+        ...(newKategori.description?.trim()
+          ? { description: newKategori.description.trim() }
           : {}),
       };
-      const response = await createKelas(payload);
-      if (response.success) {
-        showSuccess(`Kelas "${newKelas.name}" berhasil dibuat!`);
+      const response = await createKategoriSoal(payload);
+      if (response?.success) {
+        showSuccess(`Kategori "${payload.name}" berhasil dibuat!`);
         setIsCreateModalOpen(false);
-        setNewKelas({ kode_kelas: "", name: "", description: "", price: "" });
-        await fetchKelas(1);
+        setNewKategori({ name: "", description: "" });
+        await fetchKategori(1);
         setPage(1);
       } else {
-        showError(response.message || "Gagal membuat kelas baru");
+        showError(response?.message || "Gagal membuat kategori soal.");
       }
     } catch (err) {
-      showError("Terjadi kesalahan: " + (err as Error).message);
+      showError((err as Error).message);
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleUpdateKelas = async (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingKelas) return;
-
+    if (!editingKategori) return;
     setIsUpdating(true);
     try {
-      const priceValue = Number(editingKelas.price);
-      if (!Number.isFinite(priceValue)) {
-        showError("Harga harus berupa angka.");
-        setIsUpdating(false);
-        return;
-      }
       const payload = {
-        name: editingKelas.name,
-        description: editingKelas.description,
-        price: priceValue,
-        ...(editingKelas.kode_kelas?.trim()
-          ? { kode_kelas: editingKelas.kode_kelas.trim() }
+        name: editingKategori.name.trim(),
+        ...(editingKategori.description?.trim()
+          ? { description: editingKategori.description.trim() }
           : {}),
       };
-      const response = await updateKelas(editingKelas.id, {
-        ...payload,
-      });
-
-      if (response.success) {
-        showSuccess(`Kelas "${editingKelas.name}" berhasil diperbarui!`);
+      const response = await updateKategoriSoal(editingKategori.id, payload);
+      if (response?.success) {
+        showSuccess(`Kategori "${payload.name}" berhasil diperbarui!`);
         setIsEditModalOpen(false);
-        setEditingKelas(null);
-        await fetchKelas(page);
+        setEditingKategori(null);
+        await fetchKategori(page);
       } else {
-        showError(response.message || "Gagal memperbarui kelas");
+        showError(response?.message || "Gagal memperbarui kategori.");
       }
     } catch (err) {
-      showError("Terjadi kesalahan: " + (err as Error).message);
+      showError((err as Error).message);
     } finally {
       setIsUpdating(false);
     }
   };
 
-  const openDeleteModal = (kelasItem: Kelas) => {
-    setKelasToDelete(kelasItem);
+  const openDeleteModal = (kategori: KategoriSoal) => {
+    setKategoriToDelete(kategori);
     setIsDeleteModalOpen(true);
   };
 
-  const confirmDeleteKelas = async () => {
-    if (!kelasToDelete) return;
+  const confirmDelete = async () => {
+    if (!kategoriToDelete) return;
     setIsDeleting(true);
     try {
-      await deleteKelas(kelasToDelete.id);
-      showSuccess(`Kelas "${kelasToDelete.name}" berhasil dihapus!`);
-      await fetchKelas(page);
+      await deleteKategoriSoal(kategoriToDelete.id);
+      showSuccess(`Kategori "${kategoriToDelete.name}" berhasil dihapus!`);
+      await fetchKategori(page);
       setIsDeleteModalOpen(false);
-      setKelasToDelete(null);
+      setKategoriToDelete(null);
     } catch (err) {
-      showError("Gagal menghapus kelas: " + (err as Error).message);
+      showError((err as Error).message);
     } finally {
       setIsDeleting(false);
     }
@@ -171,7 +148,7 @@ export default function KelasPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
-    setNewKelas((prev) => ({
+    setNewKategori((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -180,9 +157,9 @@ export default function KelasPage() {
   const handleEditInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
-    if (!editingKelas) return;
+    if (!editingKategori) return;
     const { name, value } = e.target;
-    setEditingKelas((prev) => {
+    setEditingKategori((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -191,15 +168,11 @@ export default function KelasPage() {
     });
   };
 
-  const openEditModal = (k: Kelas) => {
-    setEditingKelas({
-      ...k,
-      price: Number.isFinite(k.price) ? String(k.price) : "",
-    });
+  const openEditModal = (kategori: KategoriSoal) => {
+    setEditingKategori(kategori);
     setIsEditModalOpen(true);
   };
 
-  // Build compact page list with ellipsis similar to UsersPage
   function getPageNumbers(
     total: number,
     current: number,
@@ -234,13 +207,14 @@ export default function KelasPage() {
   return (
     <>
       <PageHeader
-        title="Manajemen Kelas"
+        title="Kategori Soal"
+        description="Kelola kategori soal untuk bank soal."
         actions={
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="btn btn-primary"
           >
-            Tambah Kelas
+            Tambah Kategori
           </button>
         }
       />
@@ -253,10 +227,9 @@ export default function KelasPage() {
         ) : (
           <div className="card">
             <div className="card-body p-0">
-              {/* Search */}
               <div className="p-4 border-b">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cari Kelas
+                  Cari Kategori
                 </label>
                 <div className="relative">
                   <input
@@ -265,7 +238,7 @@ export default function KelasPage() {
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     placeholder="Cari berdasarkan nama atau deskripsi..."
-                    aria-label="Cari kelas"
+                    aria-label="Cari kategori"
                   />
                   <svg
                     className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
@@ -286,51 +259,40 @@ export default function KelasPage() {
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Kode</th>
                     <th>Nama</th>
                     <th>Deskripsi</th>
-                    <th>Harga</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {kelas
+                  {kategoriSoals
                     .filter((k) => {
                       const q = search.trim().toLowerCase();
                       if (!q) return true;
                       return (
                         k.name.toLowerCase().includes(q) ||
-                        (k.kode_kelas
-                          ? k.kode_kelas.toLowerCase().includes(q)
-                          : false) ||
                         (k.description
                           ? k.description.toLowerCase().includes(q)
                           : false)
                       );
                     })
-                    .map((k) => (
-                      <tr key={k.id}>
-                        <td>{k.id}</td>
-                        <td>{k.kode_kelas || "-"}</td>
-                        <td className="font-medium text-gray-900">{k.name}</td>
-                        <td>{k.description}</td>
-                        <td>Rp{k.price.toLocaleString("id-ID")}</td>
+                    .map((kategori) => (
+                      <tr key={kategori.id}>
+                        <td>{kategori.id}</td>
+                        <td className="font-medium text-gray-900">
+                          {kategori.name}
+                        </td>
+                        <td>{kategori.description || "-"}</td>
                         <td>
                           <div className="flex gap-2">
-                            <Link
-                              to={`/kelas/${k.id}`}
-                              className="btn btn-secondary btn-sm"
-                            >
-                              Detail
-                            </Link>
                             <button
-                              onClick={() => openEditModal(k)}
+                              onClick={() => openEditModal(kategori)}
                               className="btn btn-secondary btn-sm"
                             >
                               Ubah
                             </button>
                             <button
-                              onClick={() => openDeleteModal(k)}
+                              onClick={() => openDeleteModal(kategori)}
                               className="btn btn-danger btn-sm"
                             >
                               Hapus
@@ -339,26 +301,24 @@ export default function KelasPage() {
                         </td>
                       </tr>
                     ))}
-                  {kelas.filter((k) => {
+                  {kategoriSoals.filter((k) => {
                     const q = search.trim().toLowerCase();
-                    if (!q) return false; // don't show empty row if search is empty
+                    if (!q) return false;
                     return !(
                       k.name.toLowerCase().includes(q) ||
-                      (k.kode_kelas
-                        ? k.kode_kelas.toLowerCase().includes(q)
-                        : false) ||
                       (k.description
                         ? k.description.toLowerCase().includes(q)
                         : false)
                     );
-                  }).length === kelas.length &&
+                  }).length === kategoriSoals.length &&
                     search.trim() !== "" && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={4}
                           className="text-center py-8 text-gray-600"
                         >
-                          Tidak ada kelas yang cocok dengan kata kunci "{search}
+                          Tidak ada kategori yang cocok dengan kata kunci "
+                          {search}
                           ".
                         </td>
                       </tr>
@@ -386,7 +346,7 @@ export default function KelasPage() {
                       className="h-10 px-3 rounded-xl border border-gray-300 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                       aria-label="Halaman pertama"
                     >
-                      «
+                      {"<<"}
                     </button>
                     <button
                       onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
@@ -428,7 +388,7 @@ export default function KelasPage() {
                             key={`ellipsis-${idx}`}
                             className="px-2 text-gray-500"
                           >
-                            …
+                            ...
                           </span>
                         ),
                       )}
@@ -461,7 +421,7 @@ export default function KelasPage() {
                       className="h-10 px-3 rounded-xl border border-gray-300 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                       aria-label="Halaman terakhir"
                     >
-                      »
+                      {">>"}
                     </button>
                   </div>
                 </div>
@@ -474,77 +434,40 @@ export default function KelasPage() {
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-            <h2 className="text-xl font-bold mb-6">Buat Kelas Baru</h2>
-            <form onSubmit={handleCreateKelas}>
-              <div className="mb-4">
-                <label
-                  htmlFor="kode_kelas"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Kode Kelas (opsional)
-                </label>
-                <input
-                  type="text"
-                  id="kode_kelas"
-                  name="kode_kelas"
-                  value={newKelas.kode_kelas || ""}
-                  onChange={handleInputChange}
-                  className="input w-full"
-                  placeholder="Contoh: KLS-001"
-                  disabled={isCreating}
-                />
-              </div>
+            <h2 className="text-xl font-bold mb-6">Buat Kategori Soal</h2>
+            <form onSubmit={handleCreate}>
               <div className="mb-4">
                 <label
                   htmlFor="name"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Nama Kelas
+                  Nama Kategori
                 </label>
                 <input
                   type="text"
                   id="name"
                   name="name"
-                  value={newKelas.name}
+                  value={newKategori.name}
                   onChange={handleInputChange}
                   className="input w-full"
-                  required
-                  disabled={isCreating}
-                />
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="description"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Deskripsi
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={newKelas.description}
-                  onChange={handleInputChange}
-                  className="input w-full"
-                  rows={3}
                   required
                   disabled={isCreating}
                 />
               </div>
               <div className="mb-6">
                 <label
-                  htmlFor="price"
+                  htmlFor="description"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Harga
+                  Deskripsi (opsional)
                 </label>
-                <input
-                  type="number"
-                  id="price"
-                  name="price"
-                  value={newKelas.price}
+                <textarea
+                  id="description"
+                  name="description"
+                  value={newKategori.description || ""}
                   onChange={handleInputChange}
                   className="input w-full"
-                  required
+                  rows={3}
                   disabled={isCreating}
                 />
               </div>
@@ -570,80 +493,43 @@ export default function KelasPage() {
         </div>
       )}
 
-      {isEditModalOpen && editingKelas && (
+      {isEditModalOpen && editingKategori && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-            <h2 className="text-xl font-bold mb-6">Ubah Kelas</h2>
-            <form onSubmit={handleUpdateKelas}>
-              <div className="mb-4">
-                <label
-                  htmlFor="edit-kode_kelas"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Kode Kelas (opsional)
-                </label>
-                <input
-                  type="text"
-                  id="edit-kode_kelas"
-                  name="kode_kelas"
-                  value={editingKelas.kode_kelas || ""}
-                  onChange={handleEditInputChange}
-                  className="input w-full"
-                  placeholder="Contoh: KLS-001"
-                  disabled={isUpdating}
-                />
-              </div>
+            <h2 className="text-xl font-bold mb-6">Ubah Kategori Soal</h2>
+            <form onSubmit={handleUpdate}>
               <div className="mb-4">
                 <label
                   htmlFor="edit-name"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Nama Kelas
+                  Nama Kategori
                 </label>
                 <input
                   type="text"
                   id="edit-name"
                   name="name"
-                  value={editingKelas.name}
+                  value={editingKategori.name}
                   onChange={handleEditInputChange}
                   className="input w-full"
-                  required
-                  disabled={isUpdating}
-                />
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="edit-description"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Deskripsi
-                </label>
-                <textarea
-                  id="edit-description"
-                  name="description"
-                  value={editingKelas.description}
-                  onChange={handleEditInputChange}
-                  className="input w-full"
-                  rows={3}
                   required
                   disabled={isUpdating}
                 />
               </div>
               <div className="mb-6">
                 <label
-                  htmlFor="edit-price"
+                  htmlFor="edit-description"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Harga
+                  Deskripsi (opsional)
                 </label>
-                <input
-                  type="number"
-                  id="edit-price"
-                  name="price"
-                  value={editingKelas.price}
+                <textarea
+                  id="edit-description"
+                  name="description"
+                  value={editingKategori.description || ""}
                   onChange={handleEditInputChange}
                   className="input w-full"
-                  required
+                  rows={3}
                   disabled={isUpdating}
                 />
               </div>
@@ -669,12 +555,13 @@ export default function KelasPage() {
         </div>
       )}
 
-      {isDeleteModalOpen && kelasToDelete && (
+      {isDeleteModalOpen && kategoriToDelete && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-            <h2 className="text-xl font-bold mb-2">Hapus Kelas</h2>
+            <h2 className="text-xl font-bold mb-2">Hapus Kategori</h2>
             <p className="text-sm text-gray-600 mb-6">
-              Kelas <span className="font-semibold">{kelasToDelete.name}</span>
+              Kategori{" "}
+              <span className="font-semibold">{kategoriToDelete.name}</span>
               akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
             </p>
             <div className="flex justify-end gap-4">
@@ -683,7 +570,7 @@ export default function KelasPage() {
                 onClick={() => {
                   if (!isDeleting) {
                     setIsDeleteModalOpen(false);
-                    setKelasToDelete(null);
+                    setKategoriToDelete(null);
                   }
                 }}
                 className="btn btn-secondary"
@@ -693,7 +580,7 @@ export default function KelasPage() {
               </button>
               <button
                 type="button"
-                onClick={confirmDeleteKelas}
+                onClick={confirmDelete}
                 className="btn btn-danger"
                 disabled={isDeleting}
               >
