@@ -12,23 +12,24 @@ export default function QuestionsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [kategoriFilterId, setKategoriFilterId] = useState<number | "">("");
+  const [kategoriFilterName, setKategoriFilterName] = useState<string>("");
   const [allSoals, setAllSoals] = useState<Soal[]>([]);
   const [allSoalsLoading, setAllSoalsLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSoal, setEditingSoal] = useState<Soal | null>(null);
   const itemsPerPage = 10;
   const [viewingSoal, setViewingSoal] = useState<Soal | null>(null);
-  const [deletingSoalId, setDeletingSoalId] = useState<number | null>(null);
+  const [deletingSoalId, setDeletingSoalId] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [soalToDelete, setSoalToDelete] = useState<Soal | null>(null);
+  const [toggleActionLabel, setToggleActionLabel] = useState<"Hapus">("Hapus");
   const [kategoriSoals, setKategoriSoals] = useState<api.KategoriSoal[]>([]);
   const [kategoriLoading, setKategoriLoading] = useState(false);
   const [kategoriError, setKategoriError] = useState<string | null>(null);
 
   // Form states
   const [kodeSoal, setKodeSoal] = useState("");
-  const [kategoriSoalId, setKategoriSoalId] = useState<number | "">("");
+  const [kategoriSoalName, setKategoriSoalName] = useState<string>("");
   const [question, setQuestion] = useState("");
   const [explanation, setExplanation] = useState("");
   const [options, setOptions] = useState<
@@ -40,6 +41,7 @@ export default function QuestionsPage() {
     { option_text: "", is_correct: false },
   ]);
   const [submitting, setSubmitting] = useState(false);
+  const [originalQuestionCode, setOriginalQuestionCode] = useState("");
 
   const loadSoals = useCallback(async () => {
     try {
@@ -122,72 +124,52 @@ export default function QuestionsPage() {
   }, []);
 
   useEffect(() => {
-    const hasFilter = searchQuery.trim() !== "" || kategoriFilterId !== "";
+    const hasFilter = searchQuery.trim() !== "" || kategoriFilterName !== "";
     if (!hasFilter) return;
     if (allSoals.length > 0 || allSoalsLoading) return;
     loadAllSoals();
   }, [
     searchQuery,
-    kategoriFilterId,
+    kategoriFilterName,
     allSoals.length,
     allSoalsLoading,
     loadAllSoals,
   ]);
-
   const openDeleteModal = (soal: Soal) => {
     setSoalToDelete(soal);
+    setToggleActionLabel("Hapus");
     setIsDeleteModalOpen(true);
   };
-
-  const handleDeleteSoal = async (soalId: number) => {
+  const handleToggleSoalStatus = async (questionCode: string) => {
     try {
-      setDeletingSoalId(soalId);
-      console.log("Deleting soal with ID:", soalId);
+      setDeletingSoalId(questionCode);
 
-      // Direct API call untuk deleteSoal - endpoint: DELETE /api/v1/soals/{{soal_id}}
-      const token = api.getToken();
-      if (!token) {
-        throw new Error("No authentication token");
+      if (soalToDelete?.is_active === 0) {
+        throw new Error("Soal ini sudah dihapus");
       }
 
-      const url = `/api/v1/soals/${soalId}`;
-      console.log("Delete API URL:", url);
-
-      const res = await fetch(url, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const contentType = res.headers.get("content-type") || "";
-      const isJson = contentType.includes("application/json");
-      const data =
-        isJson && res.headers.get("content-length") !== "0"
-          ? await res.json()
-          : {
-              success: res.ok,
-              message: res.ok ? "Soal berhasil dihapus" : await res.text(),
-            };
-
-      console.log("Delete API Response:", data);
-
-      if (!res.ok) {
-        throw new Error(data.message || `HTTP error! status: ${res.status}`);
+      const res = await api.deleteSoal(questionCode);
+      if (!res?.success) {
+        throw new Error(res?.message || "Gagal menghapus soal");
       }
 
-      // Refresh data setelah delete berhasil
       await loadSoals();
-      setAllSoals((prev) => prev.filter((soal) => soal.id !== soalId));
+      setAllSoals((prev) =>
+        prev.map((soal) =>
+          soal.question_code === questionCode
+            ? {
+                ...soal,
+                is_active: 0,
+              }
+            : soal,
+        ),
+      );
       setIsDeleteModalOpen(false);
       setSoalToDelete(null);
-      alert("Soal berhasil dihapus!");
-      console.log("Soal deleted successfully");
+      alert("Soal berhasil dihapus.");
     } catch (err) {
-      console.error("Error deleting soal:", err);
       setError((err as Error).message);
-      alert("Error menghapus soal: " + (err as Error).message);
+      alert(`Error menghapus soal: ${(err as Error).message}`);
     } finally {
       setDeletingSoalId(null);
     }
@@ -227,7 +209,7 @@ export default function QuestionsPage() {
 
   const resetForm = () => {
     setKodeSoal("");
-    setKategoriSoalId("");
+    setKategoriSoalName("");
     setQuestion("");
     setExplanation("");
     setOptions([
@@ -238,12 +220,19 @@ export default function QuestionsPage() {
     ]);
     setShowAddForm(false);
     setEditingSoal(null);
+    setOriginalQuestionCode("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+
+    if (!kodeSoal.trim() || !kategoriSoalName.trim()) {
+      setError("Kode soal dan kategori wajib diisi.");
+      setSubmitting(false);
+      return;
+    }
 
     if (!question || !explanation || options.some((opt) => !opt.option_text)) {
       setError("Semua field harus diisi.");
@@ -277,19 +266,19 @@ export default function QuestionsPage() {
           throw new Error("No authentication token");
         }
 
-        // Try direct backend URL to bypass Vite proxy issue with PUT
-        const url = `http://localhost:8080/api/v1/soals/${editingSoal.id}`;
+        // Gunakan question_code asli sebagai path parameter saat update
+        const targetQuestionCode =
+          originalQuestionCode || editingSoal.question_code;
+        const url = `http://localhost:8080/api/v1/soals/${targetQuestionCode}`;
         console.log("🌐 Update API URL:", url);
         console.log("🔑 Token preview:", token.substring(0, 20) + "...");
 
         const requestBody = {
+          question_code: kodeSoal.trim(),
+          category_name: kategoriSoalName,
           question,
           explanation,
           pilihan_jawaban: cleanedOptions,
-          ...(kodeSoal.trim() ? { kode_soal: kodeSoal.trim() } : {}),
-          ...(kategoriSoalId !== ""
-            ? { kategori_soal_id: Number(kategoriSoalId) }
-            : {}),
         };
         console.log("📤 Request body:", JSON.stringify(requestBody, null, 2));
 
@@ -316,19 +305,37 @@ export default function QuestionsPage() {
 
         console.log("📥 Response data:", data);
 
-        // WORKAROUND: Backend query berhasil tapi return 404
-        // Jika error "Soal not found" tapi bukan authentication error,
-        // kemungkinan besar update berhasil tapi backend gagal fetch response
-        if (!res.ok && data.message === "Soal not found") {
+        // WORKAROUND: backend bisa mengembalikan "not found" dengan shape/casing berbeda
+        // meskipun update kemungkinan sudah berhasil di DB.
+        const extractErrorText = (value: unknown): string => {
+          if (typeof value === "string") return value;
+          if (value && typeof value === "object") {
+            const obj = value as {
+              message?: unknown;
+              error?: unknown;
+              errors?: unknown;
+            };
+            if (typeof obj.message === "string") return obj.message;
+            if (typeof obj.error === "string") return obj.error;
+            if (Array.isArray(obj.errors)) {
+              const first = obj.errors.find((item) => typeof item === "string");
+              if (typeof first === "string") return first;
+            }
+          }
+          return "";
+        };
+
+        const errorText = extractErrorText(data).toLowerCase();
+        const isNotFoundFalseNegative =
+          !res.ok &&
+          (errorText.includes("soal not found") ||
+            (errorText.includes("not found") && errorText.includes("soal")));
+
+        if (isNotFoundFalseNegative) {
           console.warn(
-            "⚠️ Backend returned 404 but update query likely succeeded",
+            "⚠️ Backend returned not-found style error; treating as potential false-negative and reloading data",
           );
-          console.warn("⚠️ Treating as success and refreshing data...");
-
-          // Refresh data untuk verify
           await loadSoals();
-
-          // Check if soal masih ada dan data berubah
           alert("Update berhasil. Silakan cek apakah data berubah.");
           resetForm();
           return;
@@ -340,12 +347,16 @@ export default function QuestionsPage() {
 
         if (data?.data) {
           setSoals((prev) =>
-            prev.map((soal) => (soal.id === data.data.id ? data.data : soal)),
+            prev.map((soal) =>
+              soal.question_code === data.data.question_code ? data.data : soal,
+            ),
           );
           setAllSoals((prev) =>
-            prev.map((soal) => (soal.id === data.data.id ? data.data : soal)),
+            prev.map((soal) =>
+              soal.question_code === data.data.question_code ? data.data : soal,
+            ),
           );
-          if (viewingSoal?.id === data.data.id) {
+          if (viewingSoal?.question_code === data.data.question_code) {
             setViewingSoal(data.data);
           }
         } else {
@@ -356,13 +367,11 @@ export default function QuestionsPage() {
         resetForm();
       } else {
         const created = await api.createSoal({
+          question_code: kodeSoal.trim(),
+          category_name: kategoriSoalName,
           question,
           explanation,
           pilihan_jawaban: options,
-          ...(kodeSoal.trim() ? { kode_soal: kodeSoal.trim() } : {}),
-          ...(kategoriSoalId !== ""
-            ? { kategori_soal_id: Number(kategoriSoalId) }
-            : {}),
         });
         const newSoal = created?.data;
         if (newSoal) {
@@ -406,8 +415,11 @@ export default function QuestionsPage() {
 
   const handleEditSoal = (soal: Soal) => {
     setEditingSoal(soal);
-    setKodeSoal(soal.kode_soal || "");
-    setKategoriSoalId(soal.kategori_soal?.id ?? soal.kategori_soal_id ?? "");
+    setKodeSoal(soal.question_code || "");
+    setOriginalQuestionCode(soal.question_code || "");
+    setKategoriSoalName(
+      soal.category_name || soal.kategori_soal?.category_name || "",
+    );
     setQuestion(soal.question);
     setExplanation(soal.explanation || "");
     // Map pilihan_jawaban dan hanya ambil field yang diperlukan
@@ -421,10 +433,10 @@ export default function QuestionsPage() {
     setShowAddForm(true);
   };
 
-  const handleViewSoal = async (soalId: number) => {
+  const handleViewSoal = async (questionCode: string) => {
     try {
       setLoading(true);
-      console.log("Fetching soal detail for ID:", soalId);
+      console.log("Fetching soal detail for code:", questionCode);
 
       // Direct API call untuk getSoalById - endpoint: GET /api/v1/soals/{{soal_id}}
       const token = api.getToken();
@@ -432,7 +444,7 @@ export default function QuestionsPage() {
         throw new Error("No authentication token");
       }
 
-      const url = `/api/v1/soals/${soalId}`;
+      const url = `/api/v1/soals/${questionCode}`;
       console.log("API URL:", url);
 
       const res = await fetch(url, {
@@ -471,23 +483,21 @@ export default function QuestionsPage() {
   };
 
   const getKategoriLabel = (soal: Soal) => {
-    if (soal.kategori_soal?.name) return soal.kategori_soal.name;
-    if (soal.kategori_soal_id) {
-      const match = kategoriSoals.find(
-        (kategori) => kategori.id === soal.kategori_soal_id,
-      );
-      return match ? match.name : `#${soal.kategori_soal_id}`;
-    }
-    return "-";
+    return (
+      soal.category_name ||
+      soal.kategori_soal?.category_name ||
+      soal.kategori_soal?.name ||
+      "-"
+    );
   };
 
-  const isFiltering = searchQuery.trim() !== "" || kategoriFilterId !== "";
+  const isFiltering = searchQuery.trim() !== "" || kategoriFilterName !== "";
   const sourceSoals = isFiltering ? allSoals : soals;
 
   const filteredSoals = sourceSoals.filter((soal) => {
-    if (kategoriFilterId !== "") {
-      const kategoriId = soal.kategori_soal?.id ?? soal.kategori_soal_id;
-      if (kategoriId !== kategoriFilterId) {
+    if (kategoriFilterName) {
+      const kategoriName = getKategoriLabel(soal);
+      if (kategoriName !== kategoriFilterName) {
         return false;
       }
     }
@@ -496,7 +506,11 @@ export default function QuestionsPage() {
     const kategoriLabel = getKategoriLabel(soal).toLowerCase();
     return (
       soal.question.toLowerCase().includes(q) ||
-      (soal.kode_soal ? soal.kode_soal.toLowerCase().includes(q) : false) ||
+      (soal.question_code
+        ? soal.question_code.toLowerCase().includes(q)
+        : soal.kode_soal
+          ? soal.kode_soal.toLowerCase().includes(q)
+          : false) ||
       (kategoriLabel !== "-" && kategoriLabel.includes(q))
     );
   });
@@ -619,18 +633,17 @@ export default function QuestionsPage() {
           </label>
           <select
             className="form-input w-full"
-            value={kategoriFilterId === "" ? "" : String(kategoriFilterId)}
-            onChange={(e) =>
-              setKategoriFilterId(
-                e.target.value === "" ? "" : Number(e.target.value),
-              )
-            }
+            value={kategoriFilterName}
+            onChange={(e) => setKategoriFilterName(e.target.value)}
             disabled={kategoriLoading}
           >
             <option value="">Semua kategori</option>
             {kategoriSoals.map((kategori) => (
-              <option key={kategori.id} value={kategori.id}>
-                {kategori.name}
+              <option
+                key={kategori.category_name}
+                value={kategori.category_name}
+              >
+                {kategori.category_name}
               </option>
             ))}
           </select>
@@ -677,7 +690,7 @@ export default function QuestionsPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="form-control">
                     <label htmlFor="kode-soal" className="form-label">
-                      Kode Soal (opsional)
+                      Kode Soal
                     </label>
                     <input
                       id="kode-soal"
@@ -686,9 +699,10 @@ export default function QuestionsPage() {
                       placeholder="Contoh: SOAL-001"
                       value={kodeSoal}
                       onChange={(e) => setKodeSoal(e.target.value)}
+                      required
                     />
                     <p className="helper-text">
-                      Kosongkan untuk otomatis dari sistem.
+                      Wajib diisi sesuai format kode soal (contoh: Q-KLINK-001).
                     </p>
                   </div>
                   <div className="form-control">
@@ -698,20 +712,17 @@ export default function QuestionsPage() {
                     <select
                       id="kategori-soal"
                       className="form-input w-full"
-                      value={
-                        kategoriSoalId === "" ? "" : String(kategoriSoalId)
-                      }
-                      onChange={(e) =>
-                        setKategoriSoalId(
-                          e.target.value === "" ? "" : Number(e.target.value),
-                        )
-                      }
+                      value={kategoriSoalName}
+                      onChange={(e) => setKategoriSoalName(e.target.value)}
                       disabled={kategoriLoading}
                     >
                       <option value="">Pilih kategori...</option>
                       {kategoriSoals.map((kategori) => (
-                        <option key={kategori.id} value={kategori.id}>
-                          {kategori.name}
+                        <option
+                          key={kategori.category_name}
+                          value={kategori.category_name}
+                        >
+                          {kategori.category_name}
                         </option>
                       ))}
                     </select>
@@ -850,7 +861,9 @@ export default function QuestionsPage() {
         >
           <div className="modal modal-enter max-w-3xl w-full">
             <div className="modal-header">
-              <h2 className="modal-title">Detail Soal #{viewingSoal.id}</h2>
+              <h2 className="modal-title">
+                Detail Soal #{viewingSoal.question_code}
+              </h2>
               <button
                 onClick={() => setViewingSoal(null)}
                 className="modal-close"
@@ -878,7 +891,7 @@ export default function QuestionsPage() {
                     Kode Soal:
                   </label>
                   <div className="p-3 bg-gray-100 rounded-lg text-gray-900">
-                    {viewingSoal.kode_soal || "-"}
+                    {viewingSoal.question_code || "-"}
                   </div>
                 </div>
                 <div>
@@ -974,6 +987,8 @@ export default function QuestionsPage() {
                     handleEditSoal(viewingSoal);
                   }}
                   className="btn btn-primary"
+                  disabled={viewingSoal.is_active === 0}
+                  title={viewingSoal.is_active === 0 ? "Soal yang sudah dihapus tidak dapat diubah" : ""}
                 >
                   Ubah Soal
                 </button>
@@ -1049,6 +1064,9 @@ export default function QuestionsPage() {
                       Pertanyaan
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Jawaban Benar
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -1059,7 +1077,7 @@ export default function QuestionsPage() {
                 <tbody className="bg-white divide-y divide-gray-100">
                   {filteredSoals.map((soal, index) => (
                     <tr
-                      key={soal.id}
+                      key={soal.question_code}
                       className="hover:bg-gray-50 transition-colors"
                     >
                       <td className="px-6 py-4 text-sm text-gray-700">
@@ -1068,7 +1086,7 @@ export default function QuestionsPage() {
                           : (currentPage - 1) * itemsPerPage + index + 1}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {soal.kode_soal || "-"}
+                        {soal.question_code || "-"}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-semibold">
@@ -1084,6 +1102,17 @@ export default function QuestionsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            soal.is_active === 0
+                              ? "bg-gray-100 text-gray-700"
+                              : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          {soal.is_active === 0 ? "Nonaktif" : "Aktif"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
                         <div
                           className="max-w-sm truncate"
                           title={getCorrectAnswerText(soal.pilihan_jawaban)}
@@ -1094,7 +1123,7 @@ export default function QuestionsPage() {
                       <td className="px-6 py-4 text-sm font-medium">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleViewSoal(soal.id)}
+                            onClick={() => handleViewSoal(soal.question_code)}
                             className="btn btn-secondary btn-sm"
                           >
                             Detail
@@ -1102,23 +1131,27 @@ export default function QuestionsPage() {
                           <button
                             onClick={() => handleEditSoal(soal)}
                             className="btn btn-secondary btn-sm"
+                            disabled={soal.is_active === 0}
+                            title={soal.is_active === 0 ? "Soal yang sudah dihapus tidak dapat diubah" : ""}
                           >
                             Ubah
                           </button>
-                          <button
-                            onClick={() => openDeleteModal(soal)}
-                            className="btn btn-danger btn-sm flex items-center"
-                            disabled={deletingSoalId === soal.id}
-                          >
-                            {deletingSoalId === soal.id ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
-                                <span>Menghapus...</span>
-                              </>
-                            ) : (
-                              "Hapus"
-                            )}
-                          </button>
+                          {soal.is_active !== 0 && (
+                            <button
+                              onClick={() => openDeleteModal(soal)}
+                              className="btn btn-sm flex items-center btn-danger"
+                              disabled={deletingSoalId === soal.question_code}
+                            >
+                              {deletingSoalId === soal.question_code ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
+                                  <span>Menghapus...</span>
+                                </>
+                              ) : (
+                                "Hapus"
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1237,10 +1270,15 @@ export default function QuestionsPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="card w-full max-w-md mx-auto">
             <div className="card-body">
-              <h2 className="text-xl font-bold mb-2">Hapus Soal</h2>
+              <h2 className="text-xl font-bold mb-2">
+                {toggleActionLabel} Soal
+              </h2>
               <p className="text-sm text-gray-600 mb-6">
-                Soal <span className="font-semibold">#{soalToDelete.id}</span>{" "}
-                akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
+                Soal{" "}
+                <span className="font-semibold">
+                  #{soalToDelete.question_code}
+                </span>{" "}
+                akan dihapus. Data tidak dihapus permanen namun tidak akan tampil lagi.
               </p>
               <div className="flex justify-end gap-3">
                 <button
@@ -1258,11 +1296,13 @@ export default function QuestionsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDeleteSoal(soalToDelete.id)}
+                  onClick={() =>
+                    handleToggleSoalStatus(soalToDelete.question_code)
+                  }
                   className="btn btn-danger"
                   disabled={!!deletingSoalId}
                 >
-                  {deletingSoalId ? "Menghapus..." : "Hapus"}
+                  {deletingSoalId ? "Menghapus..." : toggleActionLabel}
                 </button>
               </div>
             </div>

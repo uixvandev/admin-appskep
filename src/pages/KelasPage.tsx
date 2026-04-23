@@ -1,6 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { getKelas, createKelas, updateKelas, deleteKelas } from "../lib/api";
+import {
+  getKelas,
+  createKelas,
+  updateKelas,
+  deleteKelas,
+} from "../lib/api";
 import type { Kelas, CreateKelasRequest } from "../lib/api";
 import PageHeader from "../components/PageHeader.tsx";
 import Section from "../components/Section.tsx";
@@ -8,15 +13,14 @@ import { useToast } from "../utils/useToast";
 
 export default function KelasPage() {
   type KelasFormState = {
-    kode_kelas: string;
+    class_code: string;
     name: string;
     description: string;
     price: string;
   };
 
   type EditKelasFormState = {
-    id: number;
-    kode_kelas?: string | null;
+    class_code: string;
     name: string;
     description: string;
     price: string;
@@ -32,7 +36,7 @@ export default function KelasPage() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newKelas, setNewKelas] = useState<KelasFormState>({
-    kode_kelas: "",
+    class_code: "",
     name: "",
     description: "",
     price: "",
@@ -47,6 +51,7 @@ export default function KelasPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [kelasToDelete, setKelasToDelete] = useState<Kelas | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [toggleActionLabel, setToggleActionLabel] = useState<"Hapus">("Hapus");
 
   const fetchKelas = useCallback(
     async (currentPage: number = page) => {
@@ -83,18 +88,16 @@ export default function KelasPage() {
         return;
       }
       const payload: CreateKelasRequest = {
+        class_code: newKelas.class_code.trim(),
         name: newKelas.name,
         description: newKelas.description,
         price: priceValue,
-        ...(newKelas.kode_kelas?.trim()
-          ? { kode_kelas: newKelas.kode_kelas.trim() }
-          : {}),
       };
       const response = await createKelas(payload);
       if (response.success) {
         showSuccess(`Kelas "${newKelas.name}" berhasil dibuat!`);
         setIsCreateModalOpen(false);
-        setNewKelas({ kode_kelas: "", name: "", description: "", price: "" });
+        setNewKelas({ class_code: "", name: "", description: "", price: "" });
         await fetchKelas(1);
         setPage(1);
       } else {
@@ -120,16 +123,15 @@ export default function KelasPage() {
         return;
       }
       const payload = {
+        class_code: editingKelas.class_code.trim(),
         name: editingKelas.name,
         description: editingKelas.description,
         price: priceValue,
-        ...(editingKelas.kode_kelas?.trim()
-          ? { kode_kelas: editingKelas.kode_kelas.trim() }
-          : {}),
       };
-      const response = await updateKelas(editingKelas.id, {
-        ...payload,
-      });
+      const response = await updateKelas(
+        editingKelas.class_code.trim(),
+        payload,
+      );
 
       if (response.success) {
         showSuccess(`Kelas "${editingKelas.name}" berhasil diperbarui!`);
@@ -148,6 +150,7 @@ export default function KelasPage() {
 
   const openDeleteModal = (kelasItem: Kelas) => {
     setKelasToDelete(kelasItem);
+    setToggleActionLabel("Hapus");
     setIsDeleteModalOpen(true);
   };
 
@@ -155,13 +158,23 @@ export default function KelasPage() {
     if (!kelasToDelete) return;
     setIsDeleting(true);
     try {
-      await deleteKelas(kelasToDelete.id);
-      showSuccess(`Kelas "${kelasToDelete.name}" berhasil dihapus!`);
+      const currentIsActive = kelasToDelete.is_active === 0 ? 0 : 1;
+      if (currentIsActive === 1) {
+        await deleteKelas(kelasToDelete.class_code);
+      } else {
+        throw new Error("Kelas ini sudah dihapus");
+      }
+
+      showSuccess(
+        `Kelas "${kelasToDelete.name}" berhasil dihapus!`,
+      );
       await fetchKelas(page);
       setIsDeleteModalOpen(false);
       setKelasToDelete(null);
     } catch (err) {
-      showError("Gagal menghapus kelas: " + (err as Error).message);
+      showError(
+        `Gagal menghapus kelas: ` + (err as Error).message,
+      );
     } finally {
       setIsDeleting(false);
     }
@@ -193,7 +206,9 @@ export default function KelasPage() {
 
   const openEditModal = (k: Kelas) => {
     setEditingKelas({
-      ...k,
+      class_code: k.class_code,
+      name: k.name,
+      description: k.description,
       price: Number.isFinite(k.price) ? String(k.price) : "",
     });
     setIsEditModalOpen(true);
@@ -285,9 +300,9 @@ export default function KelasPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>Kode</th>
                     <th>Nama</th>
+                    <th>Status</th>
                     <th>Deskripsi</th>
                     <th>Harga</th>
                     <th>Aksi</th>
@@ -300,8 +315,8 @@ export default function KelasPage() {
                       if (!q) return true;
                       return (
                         k.name.toLowerCase().includes(q) ||
-                        (k.kode_kelas
-                          ? k.kode_kelas.toLowerCase().includes(q)
+                        (k.class_code
+                          ? k.class_code.toLowerCase().includes(q)
                           : false) ||
                         (k.description
                           ? k.description.toLowerCase().includes(q)
@@ -309,16 +324,26 @@ export default function KelasPage() {
                       );
                     })
                     .map((k) => (
-                      <tr key={k.id}>
-                        <td>{k.id}</td>
-                        <td>{k.kode_kelas || "-"}</td>
+                      <tr key={k.class_code}>
+                        <td>{k.class_code}</td>
                         <td className="font-medium text-gray-900">{k.name}</td>
+                        <td>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              k.is_active === 0
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-green-100 text-green-700"
+                            }`}
+                          >
+                            {k.is_active === 0 ? "Nonaktif" : "Aktif"}
+                          </span>
+                        </td>
                         <td>{k.description}</td>
                         <td>Rp{k.price.toLocaleString("id-ID")}</td>
                         <td>
                           <div className="flex gap-2">
                             <Link
-                              to={`/kelas/${k.id}`}
+                              to={`/kelas/${k.class_code}`}
                               className="btn btn-secondary btn-sm"
                             >
                               Detail
@@ -326,15 +351,19 @@ export default function KelasPage() {
                             <button
                               onClick={() => openEditModal(k)}
                               className="btn btn-secondary btn-sm"
+                              disabled={k.is_active === 0}
+                              title={k.is_active === 0 ? "Kelas yang sudah dihapus tidak dapat diubah" : ""}
                             >
                               Ubah
                             </button>
-                            <button
-                              onClick={() => openDeleteModal(k)}
-                              className="btn btn-danger btn-sm"
-                            >
-                              Hapus
-                            </button>
+                            {k.is_active !== 0 && (
+                              <button
+                                onClick={() => openDeleteModal(k)}
+                                className="btn btn-sm btn-danger"
+                              >
+                                Hapus
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -344,8 +373,8 @@ export default function KelasPage() {
                     if (!q) return false; // don't show empty row if search is empty
                     return !(
                       k.name.toLowerCase().includes(q) ||
-                      (k.kode_kelas
-                        ? k.kode_kelas.toLowerCase().includes(q)
+                      (k.class_code
+                        ? k.class_code.toLowerCase().includes(q)
                         : false) ||
                       (k.description
                         ? k.description.toLowerCase().includes(q)
@@ -478,19 +507,20 @@ export default function KelasPage() {
             <form onSubmit={handleCreateKelas}>
               <div className="mb-4">
                 <label
-                  htmlFor="kode_kelas"
+                  htmlFor="class_code"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Kode Kelas (opsional)
+                  Kode Kelas
                 </label>
                 <input
                   type="text"
-                  id="kode_kelas"
-                  name="kode_kelas"
-                  value={newKelas.kode_kelas || ""}
+                  id="class_code"
+                  name="class_code"
+                  value={newKelas.class_code}
                   onChange={handleInputChange}
                   className="input w-full"
                   placeholder="Contoh: KLS-001"
+                  required
                   disabled={isCreating}
                 />
               </div>
@@ -577,20 +607,21 @@ export default function KelasPage() {
             <form onSubmit={handleUpdateKelas}>
               <div className="mb-4">
                 <label
-                  htmlFor="edit-kode_kelas"
+                  htmlFor="edit-class_code"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Kode Kelas (opsional)
+                  Kode Kelas
                 </label>
                 <input
                   type="text"
-                  id="edit-kode_kelas"
-                  name="kode_kelas"
-                  value={editingKelas.kode_kelas || ""}
-                  onChange={handleEditInputChange}
-                  className="input w-full"
+                  id="edit-class_code"
+                  name="class_code"
+                  value={editingKelas.class_code}
+                  className="input w-full bg-gray-100 text-gray-500 cursor-not-allowed"
                   placeholder="Contoh: KLS-001"
-                  disabled={isUpdating}
+                  required
+                  disabled
+                  readOnly
                 />
               </div>
               <div className="mb-4">
@@ -672,10 +703,12 @@ export default function KelasPage() {
       {isDeleteModalOpen && kelasToDelete && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-            <h2 className="text-xl font-bold mb-2">Hapus Kelas</h2>
+            <h2 className="text-xl font-bold mb-2">
+              {toggleActionLabel} Kelas
+            </h2>
             <p className="text-sm text-gray-600 mb-6">
-              Kelas <span className="font-semibold">{kelasToDelete.name}</span>
-              akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
+              Kelas <span className="font-semibold">{kelasToDelete.name}</span>{" "}
+              akan dihapus. Data tidak dihapus permanen namun tidak akan tampil lagi.
             </p>
             <div className="flex justify-end gap-4">
               <button
@@ -697,7 +730,7 @@ export default function KelasPage() {
                 className="btn btn-danger"
                 disabled={isDeleting}
               >
-                {isDeleting ? "Menghapus..." : "Hapus"}
+                {isDeleting ? "Menghapus..." : toggleActionLabel}
               </button>
             </div>
           </div>

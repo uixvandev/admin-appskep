@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getPakets, deletePaket, createPaket, updatePaket } from "../lib/api";
+import {
+  getPakets,
+  deletePaket,
+  createPaket,
+  updatePaket,
+} from "../lib/api";
 import type { Paket } from "../lib/api";
 import CreatePaketModal from "../components/CreatePaketModal";
 import EditPaketModal from "../components/EditPaketModal";
@@ -8,15 +13,14 @@ import PageHeader from "../components/PageHeader.tsx";
 
 // Local types aligned with modal prop shapes
 type CreatePaketFormData = {
-  kode_paket?: string;
+  package_code: string;
   name: string;
   description: string;
   duration: number;
 };
 
 type EditingPaket = {
-  id: number;
-  kode_paket?: string;
+  package_code: string;
   name: string;
   description: string;
   price: number;
@@ -43,6 +47,7 @@ export default function PaketUjianPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [paketToDelete, setPaketToDelete] = useState<Paket | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [toggleActionLabel, setToggleActionLabel] = useState<"Hapus">("Hapus");
 
   useEffect(() => {
     const fetchPakets = async () => {
@@ -50,12 +55,32 @@ export default function PaketUjianPage() {
       try {
         const response = await getPakets(page, 10);
         if (response.success && response.data) {
-          setPakets(response.data.data);
-          setTotalPages(response.data.total_pages);
+          const rawList = Array.isArray(response.data.data)
+            ? response.data.data
+            : [];
+          const list = rawList
+            .map((item: Paket) => {
+              const normalizedCode =
+                typeof item?.package_code === "string"
+                  ? item.package_code.trim()
+                  : "";
+              if (!normalizedCode) return null;
+
+              return {
+                ...item,
+                package_code: normalizedCode,
+              };
+            })
+            .filter((item: Paket | null): item is Paket => item !== null);
+
+          setPakets(list);
+          setTotalPages(response.data.total_pages || 1);
         } else {
+          setPakets([]);
           setError(response.message || "Gagal memuat daftar paket.");
         }
       } catch (err) {
+        setPakets([]);
         setError((err as Error).message);
       } finally {
         setLoading(false);
@@ -102,9 +127,7 @@ export default function PaketUjianPage() {
     try {
       // Map form data to API payload shape
       await createPaket({
-        ...(data.kode_paket?.trim()
-          ? { kode_paket: data.kode_paket.trim() }
-          : {}),
+        package_code: data.package_code.trim(),
         name: data.name,
         description: data.description,
         duration: data.duration,
@@ -122,12 +145,10 @@ export default function PaketUjianPage() {
     if (!editingPaket) return;
     try {
       // Map partial form data to API payload shape with fallbacks
-      await updatePaket(editingPaket.id, {
-        ...(data.kode_paket?.trim()
-          ? { kode_paket: data.kode_paket.trim() }
-          : editingPaket.kode_paket
-            ? { kode_paket: editingPaket.kode_paket }
-            : {}),
+      await updatePaket(editingPaket.package_code, {
+        package_code: data.package_code?.trim()
+          ? data.package_code.trim()
+          : editingPaket.package_code,
         name: data.name ?? editingPaket.name,
         description: data.description ?? editingPaket.description,
         duration: data.duration ?? editingPaket.duration,
@@ -141,9 +162,10 @@ export default function PaketUjianPage() {
   };
 
   // Handler untuk delete paket
-  const handleDeletePaketModal = async (id: number) => {
+  const handleDeletePaketModal = async (packageCode: string) => {
     try {
-      await deletePaket(id);
+      const normalizedCode = packageCode.trim();
+      await deletePaket(normalizedCode);
       setShowEditModal(false);
       setEditingPaket(null);
       window.location.reload();
@@ -155,8 +177,7 @@ export default function PaketUjianPage() {
   // Mapping Paket (API) ke PaketData (modal) dengan default value
   const openEditModal = (paket: Paket) => {
     setEditingPaket({
-      id: paket.id,
-      kode_paket: paket.kode_paket || "",
+      package_code: paket.package_code.trim(),
       name: paket.name,
       description: paket.description,
       price: 0, // default
@@ -170,27 +191,50 @@ export default function PaketUjianPage() {
     setShowEditModal(true);
   };
 
-  // Tetap gunakan handler lama untuk tombol list
+  // Toggle status modal (aktif/nonaktif)
+  const normalizeIsActive = (value: unknown): 0 | 1 => {
+    if (typeof value === "number") return value === 0 ? 0 : 1;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "0" || normalized === "false") return 0;
+      return 1;
+    }
+    return 1;
+  };
   const openDeleteModal = (paket: Paket) => {
     setPaketToDelete(paket);
+    setToggleActionLabel("Hapus");
     setIsDeleteModalOpen(true);
   };
-
   const confirmDeletePaket = async () => {
     if (!paketToDelete) return;
     setIsDeleting(true);
     try {
-      await deletePaket(paketToDelete.id);
+      const currentIsActive = normalizeIsActive(paketToDelete.is_active);
+      const normalizedCode = paketToDelete.package_code.trim();
+
+      if (currentIsActive === 1) {
+        await deletePaket(normalizedCode);
+      } else {
+        throw new Error("Paket ini sudah dihapus");
+      }
+
       if (pakets.length === 1 && page > 1) {
         setPage((p) => p - 1);
       } else {
         window.location.reload();
       }
+
+      alert(
+        `Paket berhasil dihapus.`,
+      );
       setIsDeleteModalOpen(false);
       setPaketToDelete(null);
     } catch (err) {
       setError((err as Error).message);
-      alert("Gagal menghapus paket: " + (err as Error).message);
+      alert(
+        `Gagal menghapus paket: ${(err as Error).message}`,
+      );
     } finally {
       setIsDeleting(false);
     }
@@ -255,8 +299,8 @@ export default function PaketUjianPage() {
                     if (!q) return true;
                     return (
                       p.name.toLowerCase().includes(q) ||
-                      (p.kode_paket
-                        ? p.kode_paket.toLowerCase().includes(q)
+                      (p.package_code
+                        ? p.package_code.toLowerCase().includes(q)
                         : false) ||
                       (p.description
                         ? p.description.toLowerCase().includes(q)
@@ -265,7 +309,7 @@ export default function PaketUjianPage() {
                   })
                   .map((paket) => (
                     <div
-                      key={paket.id}
+                      key={paket.package_code}
                       className="border p-4 rounded-lg flex justify-between items-center hover:bg-gray-50 transition-colors"
                     >
                       <div>
@@ -273,11 +317,24 @@ export default function PaketUjianPage() {
                           {paket.name}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          Kode: {paket.kode_paket || "-"}
+                          Kode: {paket.package_code || paket.kode_paket || "-"}
                         </p>
                         <p className="text-sm text-gray-600 mt-1">
                           {paket.description}
                         </p>
+                        <div className="mt-2">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              normalizeIsActive(paket.is_active) === 0
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-green-100 text-green-700"
+                            }`}
+                          >
+                            {normalizeIsActive(paket.is_active) === 0
+                              ? "Nonaktif"
+                              : "Aktif"}
+                          </span>
+                        </div>
                         <p className="text-xs text-gray-400 mt-2">
                           Durasi: {paket.duration} menit | Total Soal:{" "}
                           {paket.total_questions}
@@ -285,7 +342,7 @@ export default function PaketUjianPage() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Link
-                          to={`/paket/${paket.id}`}
+                          to={`/paket/${paket.package_code}`}
                           className="btn btn-secondary btn-sm"
                         >
                           Detail
@@ -293,15 +350,19 @@ export default function PaketUjianPage() {
                         <button
                           onClick={() => openEditModal(paket)}
                           className="btn btn-secondary btn-sm"
+                          disabled={normalizeIsActive(paket.is_active) === 0}
+                          title={normalizeIsActive(paket.is_active) === 0 ? "Paket yang sudah dihapus tidak dapat diubah" : ""}
                         >
                           Ubah
                         </button>
-                        <button
-                          onClick={() => openDeleteModal(paket)}
-                          className="btn btn-danger btn-sm"
-                        >
-                          Hapus
-                        </button>
+                        {normalizeIsActive(paket.is_active) === 1 && (
+                          <button
+                            onClick={() => openDeleteModal(paket)}
+                            className="btn btn-sm btn-danger"
+                          >
+                            Hapus
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -310,8 +371,8 @@ export default function PaketUjianPage() {
                   if (!q) return false; // when no search, do not show empty state here
                   return !(
                     p.name.toLowerCase().includes(q) ||
-                    (p.kode_paket
-                      ? p.kode_paket.toLowerCase().includes(q)
+                    (p.package_code
+                      ? p.package_code.toLowerCase().includes(q)
                       : false) ||
                     (p.description
                       ? p.description.toLowerCase().includes(q)
@@ -453,11 +514,13 @@ export default function PaketUjianPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="card w-full max-w-md mx-auto">
             <div className="card-body">
-              <h2 className="text-xl font-bold mb-2">Hapus Paket</h2>
+              <h2 className="text-xl font-bold mb-2">
+                {toggleActionLabel} Paket
+              </h2>
               <p className="text-sm text-gray-600 mb-6">
                 Paket{" "}
-                <span className="font-semibold">{paketToDelete.name}</span> akan
-                dihapus permanen. Tindakan ini tidak bisa dibatalkan.
+                <span className="font-semibold">{paketToDelete.name}</span> akan{" "}
+                dihapus. Data tidak dihapus permanen namun tidak akan tampil lagi.
               </p>
               <div className="flex justify-end gap-3">
                 <button
@@ -479,7 +542,7 @@ export default function PaketUjianPage() {
                   className="btn btn-danger"
                   disabled={isDeleting}
                 >
-                  {isDeleting ? "Menghapus..." : "Hapus"}
+                  {isDeleting ? "Menghapus..." : toggleActionLabel}
                 </button>
               </div>
             </div>

@@ -149,10 +149,9 @@ const OrdersPage = () => {
   const getStatusBadge = (status: string) => {
     const statusClasses = {
       pending: "bg-yellow-100 text-yellow-800",
-      paid: "bg-green-100 text-green-800",
+      success: "bg-green-100 text-green-800",
       failed: "bg-red-100 text-red-800",
       cancelled: "bg-gray-100 text-gray-800",
-      expired: "bg-orange-100 text-orange-800",
     };
 
     const className =
@@ -179,17 +178,17 @@ const OrdersPage = () => {
 
   // New: count successful orders (respect filters)
   const totalPaidOrders = filteredOrders.filter(
-    (order) => order.status === "paid",
+    (order) => order.status === "success",
   ).length;
   const totalPaidAmount = filteredOrders
-    .filter((order) => order.status === "paid" && order.gross_amount)
+    .filter((order) => order.status === "success" && order.gross_amount)
     .reduce((sum, order) => sum + (order.gross_amount || 0), 0);
-  // New: count pending and expired orders (respect filters)
+  // New: count pending and failed orders (respect filters)
   const totalPendingOrders = filteredOrders.filter(
     (order) => order.status === "pending",
   ).length;
-  const totalExpiredOrders = filteredOrders.filter(
-    (order) => order.status === "expired",
+  const totalFailedOrders = filteredOrders.filter(
+    (order) => order.status === "failed",
   ).length;
 
   return (
@@ -311,11 +310,11 @@ const OrdersPage = () => {
                   </svg>
                 </div>
                 <span className="text-xs sm:text-sm font-medium text-gray-500">
-                  Order Expired
+                  Order Failed
                 </span>
               </div>
               <div className="mt-2 text-xl font-bold text-orange-600">
-                {totalExpiredOrders}
+                {totalFailedOrders}
               </div>
             </div>
           </div>
@@ -552,7 +551,7 @@ const OrdersPage = () => {
                               #{order.order_number || "N/A"}
                             </div>
                             <div className="text-sm text-gray-500">
-                              ID: {order.id || "N/A"}
+                              Ref: {order.payment_reference || "N/A"}
                             </div>
                             <div className="text-xs text-gray-400">
                               {order.payment_reference || "N/A"}

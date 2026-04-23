@@ -7,7 +7,7 @@ import PageHeader from "../components/PageHeader.tsx";
 export default function TambahSoalPage() {
   const navigate = useNavigate();
   const [kodeSoal, setKodeSoal] = useState("");
-  const [kategoriSoalId, setKategoriSoalId] = useState<number | "">("");
+  const [kategoriSoalName, setKategoriSoalName] = useState("");
   const [kategoriSoals, setKategoriSoals] = useState<api.KategoriSoal[]>([]);
   const [kategoriLoading, setKategoriLoading] = useState(false);
   const [kategoriError, setKategoriError] = useState<string | null>(null);
@@ -85,8 +85,16 @@ export default function TambahSoalPage() {
     setError(null);
     setSubmitting(true);
 
-    if (!question || !explanation || options.some((opt) => !opt.option_text)) {
-      setError("Semua field harus diisi.");
+    if (
+      !kodeSoal.trim() ||
+      !kategoriSoalName.trim() ||
+      !question ||
+      !explanation ||
+      options.some((opt) => !opt.option_text)
+    ) {
+      setError(
+        "Kode soal, kategori soal, pertanyaan, pembahasan, dan semua opsi jawaban wajib diisi.",
+      );
       setSubmitting(false);
       return;
     }
@@ -99,13 +107,11 @@ export default function TambahSoalPage() {
 
     try {
       await api.createSoal({
+        question_code: kodeSoal.trim(),
+        category_name: kategoriSoalName.trim(),
         question,
         explanation,
         pilihan_jawaban: options,
-        ...(kodeSoal.trim() ? { kode_soal: kodeSoal.trim() } : {}),
-        ...(kategoriSoalId !== ""
-          ? { kategori_soal_id: Number(kategoriSoalId) }
-          : {}),
       });
 
       alert("Soal berhasil dibuat!");
@@ -134,7 +140,7 @@ export default function TambahSoalPage() {
                   htmlFor="kode-soal"
                   className="block text-gray-700 font-semibold mb-2"
                 >
-                  Kode Soal (opsional)
+                  Kode Soal
                 </label>
                 <input
                   id="kode-soal"
@@ -143,9 +149,10 @@ export default function TambahSoalPage() {
                   onChange={(e) => setKodeSoal(e.target.value)}
                   className="input w-full"
                   placeholder="Contoh: SOAL-001"
+                  required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Kosongkan jika ingin otomatis dari sistem.
+                  Wajib diisi sesuai format kode soal (contoh: Q-KLINK-001).
                 </p>
               </div>
               <div>
@@ -153,28 +160,32 @@ export default function TambahSoalPage() {
                   htmlFor="kategori-soal"
                   className="block text-gray-700 font-semibold mb-2"
                 >
-                  Kategori Soal (opsional)
+                  Kategori Soal
                 </label>
                 <select
                   id="kategori-soal"
                   className="input w-full"
-                  value={kategoriSoalId === "" ? "" : String(kategoriSoalId)}
-                  onChange={(e) =>
-                    setKategoriSoalId(
-                      e.target.value === "" ? "" : Number(e.target.value),
-                    )
-                  }
+                  value={kategoriSoalName}
+                  onChange={(e) => setKategoriSoalName(e.target.value)}
                   disabled={kategoriLoading}
                 >
                   <option value="">Pilih kategori...</option>
                   {kategoriSoals.map((kategori) => (
-                    <option key={kategori.id} value={kategori.id}>
-                      {kategori.name}
+                    <option
+                      key={kategori.category_name}
+                      value={kategori.category_name}
+                    >
+                      {kategori.category_name}
                     </option>
                   ))}
                 </select>
                 {kategoriError && (
                   <p className="text-xs text-red-600 mt-1">{kategoriError}</p>
+                )}
+                {!kategoriError && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Wajib pilih satu kategori soal.
+                  </p>
                 )}
               </div>
             </div>

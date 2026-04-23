@@ -10,7 +10,7 @@ interface CreatePaketModalProps {
 }
 
 interface PaketFormData {
-  kode_paket?: string;
+  package_code: string;
   name: string;
   description: string;
   duration: number; // minutes
@@ -22,7 +22,7 @@ const CreatePaketModal: React.FC<CreatePaketModalProps> = ({
   onSubmit,
 }) => {
   const [formData, setFormData] = useState<PaketFormData>({
-    kode_paket: "",
+    package_code: "",
     name: "",
     description: "",
     duration: 60,
@@ -88,7 +88,7 @@ const CreatePaketModal: React.FC<CreatePaketModalProps> = ({
 
   const handleClose = () => {
     setFormData({
-      kode_paket: "",
+      package_code: "",
       name: "",
       description: "",
       duration: 60,
@@ -128,11 +128,12 @@ const CreatePaketModal: React.FC<CreatePaketModalProps> = ({
       <form onSubmit={handleSubmit} className="space-y-6">
         <FormGroup>
           <FormInput
-            label="Kode Paket (opsional)"
+            label="Kode Paket"
             placeholder="Contoh: PKT-001"
-            value={formData.kode_paket || ""}
-            onChange={(e) => handleInputChange("kode_paket", e.target.value)}
-            help="Kosongkan jika ingin otomatis dari sistem"
+            value={formData.package_code}
+            onChange={(e) => handleInputChange("package_code", e.target.value)}
+            help="Wajib diisi sesuai format kode paket"
+            required
           />
         </FormGroup>
         <FormGroup>

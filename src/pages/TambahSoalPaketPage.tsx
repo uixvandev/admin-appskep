@@ -11,21 +11,21 @@ import * as api from "../lib/api";
 import PageHeader from "../components/PageHeader.tsx";
 
 export default function TambahSoalPaketPage() {
-  const { id: paketId } = useParams<{ id: string }>();
+  const { package_code } = useParams<{ package_code: string }>();
   const [availableSoals, setAvailableSoals] = useState<api.Soal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSoals, setSelectedSoals] = useState<Set<number>>(new Set());
+  const [selectedSoals, setSelectedSoals] = useState<Set<string>>(new Set());
   const [assigningBulk, setAssigningBulk] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [kodeSoal, setKodeSoal] = useState("");
-  const [kategoriSoalId, setKategoriSoalId] = useState<number | "">("");
+  const [kategoriSoalName, setKategoriSoalName] = useState<string>("");
   const [kategoriSoals, setKategoriSoals] = useState<api.KategoriSoal[]>([]);
   const [kategoriLoading, setKategoriLoading] = useState(false);
   const [kategoriError, setKategoriError] = useState<string | null>(null);
-  const [kategoriFilterId, setKategoriFilterId] = useState<number | "">("");
+  const [kategoriFilterName, setKategoriFilterName] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [question, setQuestion] = useState("");
   const [explanation, setExplanation] = useState("");
@@ -37,7 +37,7 @@ export default function TambahSoalPaketPage() {
   ]);
 
   const fetchSoals = useCallback(async () => {
-    if (!paketId) {
+    if (!package_code) {
       setError("ID Paket tidak valid.");
       setLoading(false);
       return;
@@ -47,7 +47,7 @@ export default function TambahSoalPaketPage() {
       // Fetch all soals and soals already in the paket
       const [allSoalsResponse, soalsInPaketResponse] = await Promise.all([
         api.getAllSoals(1, 100),
-        api.getSoalsByPaket(parseInt(paketId)),
+        api.getSoalsByPaket(package_code),
       ]);
 
       if (allSoalsResponse.success && allSoalsResponse.data) {
@@ -56,13 +56,13 @@ export default function TambahSoalPaketPage() {
           soalsInPaketResponse.success && soalsInPaketResponse.data
             ? (soalsInPaketResponse.data as api.Soal[])
             : [];
-        const soalsInPaketIds = new Set<number>(
-          soalsInPaket.map((s: api.Soal) => s.id),
+        const soalsInPaketIds = new Set<string>(
+          soalsInPaket.map((s: api.Soal) => s.question_code),
         );
 
         // Filter out soals that are already in the paket
         const filteredSoals = allSoals.filter(
-          (s: api.Soal) => !soalsInPaketIds.has(s.id),
+          (s: api.Soal) => !soalsInPaketIds.has(s.question_code),
         );
         setAvailableSoals(filteredSoals);
       } else {
@@ -75,7 +75,7 @@ export default function TambahSoalPaketPage() {
     } finally {
       setLoading(false);
     }
-  }, [paketId]);
+  }, [package_code]);
 
   useEffect(() => {
     fetchSoals();
@@ -107,20 +107,16 @@ export default function TambahSoalPaketPage() {
     loadKategori();
   }, []);
 
-  const kategoriNameById = useMemo(() => {
-    const map = new Map<number, string>();
-    kategoriSoals.forEach((kategori) => {
-      map.set(kategori.id, kategori.name);
-    });
-    return map;
-  }, [kategoriSoals]);
-
   const filteredSoals = useMemo(() => {
     let list = availableSoals;
-    if (kategoriFilterId !== "") {
+    if (kategoriFilterName) {
       list = list.filter((soal) => {
-        const kategoriId = soal.kategori_soal_id ?? soal.kategori_soal?.id;
-        return kategoriId === kategoriFilterId;
+        const kategoriName =
+          soal.category_name ||
+          soal.kategori_soal?.category_name ||
+          soal.kategori_soal?.name ||
+          "";
+        return kategoriName === kategoriFilterName;
       });
     }
 
@@ -128,23 +124,26 @@ export default function TambahSoalPaketPage() {
     if (!query) return list;
 
     return list.filter((soal) => {
-      const kategoriId = soal.kategori_soal_id ?? soal.kategori_soal?.id;
-      const kategoriName = kategoriNameById.get(kategoriId ?? -1) || "";
+      const kategoriName =
+        soal.category_name ||
+        soal.kategori_soal?.category_name ||
+        soal.kategori_soal?.name ||
+        "";
       return [
         soal.question,
-        soal.kode_soal ?? "",
-        String(soal.id),
+        soal.question_code || soal.kode_soal || "",
+        soal.question_code,
         kategoriName,
       ]
         .join(" ")
         .toLowerCase()
         .includes(query);
     });
-  }, [availableSoals, kategoriFilterId, kategoriNameById, searchQuery]);
+  }, [availableSoals, kategoriFilterName, searchQuery]);
 
-  const hasFilter = kategoriFilterId !== "" || searchQuery.trim() !== "";
+  const hasFilter = kategoriFilterName !== "" || searchQuery.trim() !== "";
   const visibleSoalIds = useMemo(
-    () => filteredSoals.map((soal) => soal.id),
+    () => filteredSoals.map((soal) => soal.question_code),
     [filteredSoals],
   );
   const allVisibleSelected = useMemo(() => {
@@ -152,13 +151,13 @@ export default function TambahSoalPaketPage() {
     return visibleSoalIds.every((id) => selectedSoals.has(id));
   }, [visibleSoalIds, selectedSoals]);
 
-  const toggleSelectSoal = (soalId: number) => {
+  const toggleSelectSoal = (questionCode: string) => {
     setSelectedSoals((prev) => {
       const next = new Set(prev);
-      if (next.has(soalId)) {
-        next.delete(soalId);
+      if (next.has(questionCode)) {
+        next.delete(questionCode);
       } else {
-        next.add(soalId);
+        next.add(questionCode);
       }
       return next;
     });
@@ -183,19 +182,21 @@ export default function TambahSoalPaketPage() {
   };
 
   const handleAssignSelected = async () => {
-    if (!paketId || selectedSoals.size === 0) return;
+    if (!package_code || selectedSoals.size === 0) return;
     setAssigningBulk(true);
-    const paketIdNum = parseInt(paketId);
     const selectedIds = Array.from(selectedSoals);
 
     const results = await Promise.allSettled(
-      selectedIds.map((soalId) =>
-        api.assignSoalToPaket({ paket_id: paketIdNum, soal_id: soalId }),
+      selectedIds.map((questionCode) =>
+        api.assignSoalToPaket({
+          package_code,
+          question_code: questionCode,
+        }),
       ),
     );
 
-    const succeeded: number[] = [];
-    const failed: number[] = [];
+    const succeeded: string[] = [];
+    const failed: string[] = [];
 
     results.forEach((result, index) => {
       const soalId = selectedIds[index];
@@ -212,7 +213,7 @@ export default function TambahSoalPaketPage() {
 
     if (succeeded.length > 0) {
       setAvailableSoals((prevSoals) =>
-        prevSoals.filter((s) => !succeeded.includes(s.id)),
+        prevSoals.filter((s) => !succeeded.includes(s.question_code)),
       );
     }
 
@@ -230,7 +231,7 @@ export default function TambahSoalPaketPage() {
   // Modal helpers for creating a new soal
   const resetCreateForm = () => {
     setKodeSoal("");
-    setKategoriSoalId("");
+    setKategoriSoalName("");
     setQuestion("");
     setExplanation("");
     setOptions([
@@ -278,6 +279,10 @@ export default function TambahSoalPaketPage() {
   const handleCreateSoal = async (e: FormEvent) => {
     e.preventDefault();
     setCreateError(null);
+    if (!kodeSoal.trim() || !kategoriSoalName.trim()) {
+      setCreateError("Kode soal dan kategori wajib diisi.");
+      return;
+    }
     if (!question || options.some((opt) => !opt.option_text)) {
       setCreateError("Pertanyaan dan semua opsi harus diisi.");
       return;
@@ -289,13 +294,11 @@ export default function TambahSoalPaketPage() {
     setSubmitting(true);
     try {
       const res = await api.createSoal({
+        question_code: kodeSoal.trim(),
+        category_name: kategoriSoalName,
         question,
         explanation,
         pilihan_jawaban: options,
-        ...(kodeSoal.trim() ? { kode_soal: kodeSoal.trim() } : {}),
-        ...(kategoriSoalId !== ""
-          ? { kategori_soal_id: Number(kategoriSoalId) }
-          : {}),
       });
       if (!res.success) {
         throw new Error(res.message || "Gagal membuat soal");
@@ -325,7 +328,7 @@ export default function TambahSoalPaketPage() {
         description="Pilih soal dari bank soal untuk ditambahkan ke dalam paket ujian ini."
         actions={
           <div className="flex gap-3">
-            <Link to={`/paket/${paketId}`} className="btn btn-secondary">
+            <Link to={`/paket/${package_code}`} className="btn btn-secondary">
               &larr; Kembali ke Detail Paket
             </Link>
             <button
@@ -349,22 +352,20 @@ export default function TambahSoalPaketPage() {
                   <select
                     id="kategori-filter"
                     className="form-input w-full"
-                    value={
-                      kategoriFilterId === "" ? "" : String(kategoriFilterId)
-                    }
-                    onChange={(e) =>
-                      setKategoriFilterId(
-                        e.target.value === "" ? "" : Number(e.target.value),
-                      )
-                    }
+                    value={kategoriFilterName}
+                    onChange={(e) => setKategoriFilterName(e.target.value)}
                     disabled={kategoriLoading}
                   >
                     <option value="">Semua kategori</option>
-                    {kategoriSoals.map((kategori) => (
-                      <option key={kategori.id} value={kategori.id}>
-                        {kategori.name}
-                      </option>
-                    ))}
+                    {kategoriSoals.map((kategori) => {
+                      const value =
+                        kategori.category_name || kategori.name || "";
+                      return (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      );
+                    })}
                   </select>
                   {kategoriError && (
                     <p className="helper-text text-red-600">{kategoriError}</p>
@@ -422,19 +423,19 @@ export default function TambahSoalPaketPage() {
             {filteredSoals.length > 0 ? (
               filteredSoals.map((soal) => (
                 <div
-                  key={soal.id}
+                  key={soal.question_code}
                   className={`border p-4 rounded-lg flex justify-between items-center cursor-pointer transition-colors ${
-                    selectedSoals.has(soal.id)
+                    selectedSoals.has(soal.question_code)
                       ? "bg-blue-50/40 border-blue-200"
                       : "bg-white hover:bg-gray-50"
                   }`}
-                  onClick={() => toggleSelectSoal(soal.id)}
+                  onClick={() => toggleSelectSoal(soal.question_code)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      toggleSelectSoal(soal.id);
+                      toggleSelectSoal(soal.question_code);
                     }
                   }}
                 >
@@ -443,22 +444,23 @@ export default function TambahSoalPaketPage() {
                       {soal.question}
                     </p>
                     <p className="text-sm text-gray-500 mt-1">
-                      ID Soal: {soal.id} | Kode: {soal.kode_soal || "-"}
+                      Kode: {soal.question_code || soal.kode_soal || "-"}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
                       Kategori:{" "}
-                      {kategoriNameById.get(
-                        soal.kategori_soal_id ?? soal.kategori_soal?.id ?? -1,
-                      ) || "-"}
+                      {soal.category_name ||
+                        soal.kategori_soal?.category_name ||
+                        soal.kategori_soal?.name ||
+                        "-"}
                     </p>
                   </div>
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    checked={selectedSoals.has(soal.id)}
-                    onChange={() => toggleSelectSoal(soal.id)}
+                    checked={selectedSoals.has(soal.question_code)}
+                    onChange={() => toggleSelectSoal(soal.question_code)}
                     onClick={(e) => e.stopPropagation()}
-                    aria-label={`Pilih soal ${soal.id}`}
+                    aria-label={`Pilih soal ${soal.question_code}`}
                   />
                 </div>
               ))
@@ -525,7 +527,7 @@ export default function TambahSoalPaketPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="form-control">
                     <label htmlFor="kode-soal" className="form-label">
-                      Kode Soal (opsional)
+                      Kode Soal
                     </label>
                     <input
                       id="kode-soal"
@@ -534,34 +536,31 @@ export default function TambahSoalPaketPage() {
                       placeholder="Contoh: SOAL-001"
                       value={kodeSoal}
                       onChange={(e) => setKodeSoal(e.target.value)}
+                      required
                     />
-                    <p className="helper-text">
-                      Kosongkan untuk otomatis dari sistem.
-                    </p>
                   </div>
                   <div className="form-control">
                     <label htmlFor="kategori-soal" className="form-label">
-                      Kategori Soal (opsional)
+                      Kategori Soal
                     </label>
                     <select
                       id="kategori-soal"
                       className="form-input w-full"
-                      value={
-                        kategoriSoalId === "" ? "" : String(kategoriSoalId)
-                      }
-                      onChange={(e) =>
-                        setKategoriSoalId(
-                          e.target.value === "" ? "" : Number(e.target.value),
-                        )
-                      }
+                      value={kategoriSoalName}
+                      onChange={(e) => setKategoriSoalName(e.target.value)}
                       disabled={kategoriLoading}
+                      required
                     >
                       <option value="">Pilih kategori...</option>
-                      {kategoriSoals.map((kategori) => (
-                        <option key={kategori.id} value={kategori.id}>
-                          {kategori.name}
-                        </option>
-                      ))}
+                      {kategoriSoals.map((kategori) => {
+                        const value =
+                          kategori.category_name || kategori.name || "";
+                        return (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        );
+                      })}
                     </select>
                     {kategoriError && (
                       <p className="helper-text text-red-600">

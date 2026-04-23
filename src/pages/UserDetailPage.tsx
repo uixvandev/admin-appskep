@@ -4,7 +4,7 @@ import * as api from "../lib/api";
 import PageHeader from "../components/PageHeader.tsx";
 
 export default function UserDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { email } = useParams<{ email: string }>();
   const navigate = useNavigate();
   // Refine User shape locally to avoid 'unknown' fields from index signature
   type StrictUser = api.User & {
@@ -26,26 +26,27 @@ export default function UserDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<"admin" | "mahasiswa">(
-    "mahasiswa",
+  const [selectedRole, setSelectedRole] = useState<"admin" | "student">(
+    "student",
   );
   const [editFormData, setEditFormData] = useState<Partial<StrictUser>>({});
 
   // Role mapping function
-  const mapRoleFromAPI = (apiRole: string): "admin" | "mahasiswa" => {
+  const mapRoleFromAPI = (apiRole: string): "admin" | "student" => {
     if (apiRole.toLowerCase() === "admin") return "admin";
-    return "mahasiswa";
+    return "student";
   };
 
-  const loadUser = useCallback(async (userId: number) => {
+  const loadUser = useCallback(async (userEmail: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await api.getUserById(userId);
+      const response = await api.getUserById(userEmail);
       if (response.success && response.data) {
         const u = response.data as StrictUser;
         setUser(u);
@@ -69,10 +70,10 @@ export default function UserDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (id) {
-      loadUser(parseInt(id));
+    if (email) {
+      loadUser(email);
     }
-  }, [id, loadUser]);
+  }, [email, loadUser]);
 
   async function handleRoleUpdate() {
     if (!user || !selectedRole || mapRoleFromAPI(user.role) === selectedRole)
@@ -80,11 +81,11 @@ export default function UserDetailPage() {
 
     setUpdating(true);
     try {
-      await api.updateUserRole(user.id, selectedRole);
+      await api.updateUserRole(user.email, selectedRole);
       // Success - update user state with the new role
       setUser((prev) =>
         prev
-          ? { ...prev, role: selectedRole === "admin" ? "admin" : "mahasiswa" }
+          ? { ...prev, role: selectedRole === "admin" ? "admin" : "student" }
           : null,
       );
       setShowRoleModal(false);
@@ -105,7 +106,7 @@ export default function UserDetailPage() {
 
     setDeleting(true);
     try {
-      await api.deleteUser(user.id);
+      await api.deleteUser(user.email);
       // Success - navigate back to users page
       navigate("/users");
     } catch (error) {
@@ -125,22 +126,49 @@ export default function UserDetailPage() {
 
     setUpdating(true);
     try {
-      const response = await api.updateUser(user.id, {
-        name: editFormData.name,
-        email: editFormData.email,
-        phone_number: editFormData.phone_number,
-        gender: editFormData.gender as "male" | "female" | undefined,
-        educational_institution: editFormData.educational_institution,
-        profession: editFormData.profession,
-        address: editFormData.address,
-        province: editFormData.province,
-        city: editFormData.city,
-        date_of_birth: editFormData.date_of_birth,
-        role: editFormData.role as "admin" | "mahasiswa" | undefined,
-      });
+      const normalize = (value?: string | null) => {
+        if (value === undefined || value === null) return null;
+        const v = String(value).trim();
+        return v.length > 0 ? v : null;
+      };
+
+      const normalizeDate = (value?: string | null) => {
+        if (value === undefined || value === null) return null;
+        const v = String(value).trim();
+        return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+      };
+
+      const normalizeGender = (value?: string | null) => {
+        if (value === undefined || value === null) return null;
+        const v = String(value).trim().toLowerCase();
+        if (!v) return null;
+        return v === "male" || v === "female" ? v : null;
+      };
+
+      const cleanPayload = {
+        name: normalize(editFormData.name ?? user.name),
+        phone_number: normalize(editFormData.phone_number ?? user.phone_number),
+        date_of_birth: normalizeDate(
+          editFormData.date_of_birth ?? user.date_of_birth,
+        ),
+        gender: normalizeGender(editFormData.gender ?? user.gender),
+        educational_institution: normalize(
+          editFormData.educational_institution ?? user.educational_institution,
+        ),
+        profession: normalize(editFormData.profession ?? user.profession),
+        address: normalize(editFormData.address ?? user.address),
+        province: normalize(editFormData.province ?? user.province),
+        city: normalize(editFormData.city ?? user.city),
+      };
+
+      const response = await api.updateUser(
+        user.email,
+        cleanPayload as unknown as api.UpdateUserRequest,
+      );
       if (response.success && response.data) {
         setUser(response.data);
         setShowEditModal(false);
+        setSuccessMessage("Pengguna berhasil diperbarui.");
       } else {
         alert(response.message || "Failed to update user");
       }
@@ -178,7 +206,7 @@ export default function UserDetailPage() {
     switch (role) {
       case "admin":
         return "bg-blue-100 text-blue-800";
-      case "mahasiswa":
+      case "student":
         return "bg-green-100 text-green-800";
       default:
         return "bg-gray-100 text-gray-800";
@@ -215,7 +243,7 @@ export default function UserDetailPage() {
         <p className="text-gray-600 mb-6">{error}</p>
         <div className="flex justify-center gap-4">
           <button
-            onClick={() => id && loadUser(parseInt(id))}
+            onClick={() => email && loadUser(email)}
             className="text-white rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
             style={{ backgroundColor: "#00A1F5" }}
           >
@@ -277,7 +305,7 @@ export default function UserDetailPage() {
       </div>
       <PageHeader
         title="Detail Pengguna"
-        description={`ID Pengguna #${user.id}`}
+        description={`Email Pengguna ${user.email}`}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -332,7 +360,7 @@ export default function UserDetailPage() {
                       user.role,
                     )}`}
                   >
-                    {user.role === "admin" ? "Administrator" : "Mahasiswa"}
+                    {user.role === "admin" ? "Administrator" : "Student"}
                   </span>
                 </div>
               </div>
@@ -426,7 +454,11 @@ export default function UserDetailPage() {
                     <div>
                       <p className="text-sm text-gray-600">Jenis Kelamin</p>
                       <p className="font-semibold text-gray-900 capitalize">
-                        {user.gender}
+                        {user.gender === "male"
+                          ? "Laki-laki"
+                          : user.gender === "female"
+                            ? "Perempuan"
+                            : user.gender}
                       </p>
                     </div>
                   </div>
@@ -661,6 +693,12 @@ export default function UserDetailPage() {
           </div>
         </div>
       </div>
+      {successMessage && (
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {successMessage}
+        </div>
+      )}
+
       {/* Edit User Modal */}
       {showEditModal && (
         <div
@@ -723,13 +761,8 @@ export default function UserDetailPage() {
                     type="email"
                     id="email"
                     value={editFormData.email || ""}
-                    onChange={(e) =>
-                      setEditFormData({
-                        ...editFormData,
-                        email: e.target.value,
-                      })
-                    }
-                    className="input w-full"
+                    disabled
+                    className="input w-full bg-gray-100 text-gray-500 cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -887,6 +920,7 @@ export default function UserDetailPage() {
                 <button
                   onClick={() => {
                     setShowEditModal(false);
+                    setSuccessMessage(null);
                   }}
                   disabled={updating}
                   className="btn btn-secondary flex-1"
@@ -961,7 +995,7 @@ export default function UserDetailPage() {
                       value="admin"
                       checked={selectedRole === "admin"}
                       onChange={(e) =>
-                        setSelectedRole(e.target.value as "admin" | "mahasiswa")
+                        setSelectedRole(e.target.value as "admin" | "student")
                       }
                       disabled={updating}
                       className="form-radio"
@@ -975,29 +1009,27 @@ export default function UserDetailPage() {
                   </label>
 
                   <label
-                    htmlFor="mahasiswa-role"
+                    htmlFor="student-role"
                     className={`flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                      selectedRole === "mahasiswa"
+                      selectedRole === "student"
                         ? "border-primary bg-primary/10"
                         : "border-gray-200 hover:bg-gray-50"
                     }`}
                   >
                     <input
                       type="radio"
-                      id="mahasiswa-role"
+                      id="student-role"
                       name="role"
-                      value="mahasiswa"
-                      checked={selectedRole === "mahasiswa"}
+                      value="student"
+                      checked={selectedRole === "student"}
                       onChange={(e) =>
-                        setSelectedRole(e.target.value as "admin" | "mahasiswa")
+                        setSelectedRole(e.target.value as "admin" | "student")
                       }
                       disabled={updating}
                       className="form-radio"
                     />
                     <div className="flex-1">
-                      <div className="font-semibold text-gray-900">
-                        Mahasiswa
-                      </div>
+                      <div className="font-semibold text-gray-900">Student</div>
                       <div className="text-sm text-gray-600">
                         Akses terbatas sebagai peserta.
                       </div>

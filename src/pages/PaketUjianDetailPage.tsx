@@ -5,31 +5,31 @@ import PageHeader from "../components/PageHeader.tsx";
 import Section from "../components/Section.tsx";
 
 export default function PaketUjianDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { package_code } = useParams<{ package_code: string }>();
   const [paket, setPaket] = useState<api.Paket | null>(null);
   const [soals, setSoals] = useState<api.Soal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedSoals, setSelectedSoals] = useState<Set<number>>(new Set());
+  const [selectedSoals, setSelectedSoals] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchPaketDetail = async () => {
-      if (!id) return;
+      if (!package_code) return;
 
       setLoading(true);
       try {
         // Fetch paket details
-        const paketResponse = await api.getPaketById(parseInt(id));
+        const paketResponse = await api.getPaketById(package_code);
         if (paketResponse.success && paketResponse.data) {
           setPaket(paketResponse.data);
         }
 
         // Fetch soals for this paket
-        const soalsResponse = await api.getSoalsByPaket(parseInt(id));
+        const soalsResponse = await api.getSoalsByPaket(package_code);
         if (soalsResponse.success && soalsResponse.data) {
           setSoals(soalsResponse.data);
         }
@@ -41,7 +41,7 @@ export default function PaketUjianDetailPage() {
     };
 
     fetchPaketDetail();
-  }, [id]);
+  }, [package_code]);
 
   const toggleSelectionMode = () => {
     setSelectionMode((prev) => {
@@ -53,13 +53,13 @@ export default function PaketUjianDetailPage() {
     });
   };
 
-  const toggleSelectSoal = (soalId: number) => {
+  const toggleSelectSoal = (questionCode: string) => {
     setSelectedSoals((prev) => {
       const next = new Set(prev);
-      if (next.has(soalId)) {
-        next.delete(soalId);
+      if (next.has(questionCode)) {
+        next.delete(questionCode);
       } else {
-        next.add(soalId);
+        next.add(questionCode);
       }
       return next;
     });
@@ -71,46 +71,47 @@ export default function PaketUjianDetailPage() {
   };
 
   const confirmRemoveSelected = async () => {
-    if (!id || selectedSoals.size === 0) return;
+    if (!package_code || selectedSoals.size === 0) return;
     setRemoving(true);
-    const paketId = parseInt(id);
-    const removedIds: number[] = [];
-    const failedIds: number[] = [];
+    const removedCodes: string[] = [];
+    const failedCodes: string[] = [];
 
-    for (const soalId of selectedSoals) {
+    for (const questionCode of selectedSoals) {
       try {
         const response = await api.removeSoalFromPaket({
-          paket_id: paketId,
-          soal_id: soalId,
+          package_code,
+          question_code: questionCode,
         });
         if (response?.success === false) {
-          failedIds.push(soalId);
+          failedCodes.push(questionCode);
         } else {
-          removedIds.push(soalId);
+          removedCodes.push(questionCode);
         }
       } catch {
-        failedIds.push(soalId);
+        failedCodes.push(questionCode);
       }
     }
 
-    if (removedIds.length > 0) {
-      setSoals((prev) => prev.filter((soal) => !removedIds.includes(soal.id)));
+    if (removedCodes.length > 0) {
+      setSoals((prev) =>
+        prev.filter((soal) => !removedCodes.includes(soal.question_code)),
+      );
       setPaket((prev) =>
         prev
           ? {
               ...prev,
               total_questions: Math.max(
                 0,
-                prev.total_questions - removedIds.length,
+                prev.total_questions - removedCodes.length,
               ),
             }
           : prev,
       );
     }
 
-    if (failedIds.length > 0) {
+    if (failedCodes.length > 0) {
       alert("Sebagian soal gagal dihapus. Coba lagi.");
-      setSelectedSoals(new Set(failedIds));
+      setSelectedSoals(new Set(failedCodes));
     } else {
       setSelectedSoals(new Set());
       setSelectionMode(false);
@@ -131,7 +132,7 @@ export default function PaketUjianDetailPage() {
       return [
         soal.question,
         soal.explanation || "",
-        soal.kode_soal || "",
+        soal.question_code || soal.kode_soal || "",
         optionText,
       ]
         .join(" ")
@@ -206,7 +207,7 @@ export default function PaketUjianDetailPage() {
               </button>
             )}
             <Link
-              to={`/paket/${id}/tambah-soal`}
+              to={`/paket/${package_code}/tambah-soal`}
               className="btn btn-primary text-white hover:text-white focus-visible:text-white"
             >
               Tambah Soal
@@ -270,9 +271,9 @@ export default function PaketUjianDetailPage() {
                 <div className="space-y-4">
                   {filteredSoals.map((soal, index) => (
                     <div
-                      key={soal.id}
+                      key={soal.question_code}
                       className={`border border-gray-200 rounded-lg p-4 transition-colors ${
-                        selectionMode && selectedSoals.has(soal.id)
+                        selectionMode && selectedSoals.has(soal.question_code)
                           ? "bg-blue-50/40 border-blue-200"
                           : "bg-white"
                       }`}
@@ -283,8 +284,10 @@ export default function PaketUjianDetailPage() {
                             <input
                               type="checkbox"
                               className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              checked={selectedSoals.has(soal.id)}
-                              onChange={() => toggleSelectSoal(soal.id)}
+                              checked={selectedSoals.has(soal.question_code)}
+                              onChange={() =>
+                                toggleSelectSoal(soal.question_code)
+                              }
                               aria-label={`Pilih soal ${index + 1}`}
                             />
                           )}

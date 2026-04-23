@@ -4,7 +4,6 @@ import Section from "../components/Section.tsx";
 import { useToast } from "../utils/useToast";
 import {
   createKategoriSoal,
-  deleteKategoriSoal,
   getKategoriSoals,
   updateKategoriSoal,
 } from "../lib/api";
@@ -21,7 +20,7 @@ export default function KategoriSoalPage() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newKategori, setNewKategori] = useState<CreateKategoriSoalRequest>({
-    name: "",
+    category_name: "",
     description: "",
   });
   const [isCreating, setIsCreating] = useState(false);
@@ -31,11 +30,7 @@ export default function KategoriSoalPage() {
     null,
   );
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [kategoriToDelete, setKategoriToDelete] = useState<KategoriSoal | null>(
-    null,
-  );
-  const [isDeleting, setIsDeleting] = useState(false);
+
 
   const fetchKategori = useCallback(
     async (currentPage: number = page) => {
@@ -74,16 +69,16 @@ export default function KategoriSoalPage() {
     setIsCreating(true);
     try {
       const payload: CreateKategoriSoalRequest = {
-        name: newKategori.name.trim(),
+        category_name: newKategori.category_name.trim(),
         ...(newKategori.description?.trim()
           ? { description: newKategori.description.trim() }
           : {}),
       };
       const response = await createKategoriSoal(payload);
       if (response?.success) {
-        showSuccess(`Kategori "${payload.name}" berhasil dibuat!`);
+        showSuccess(`Kategori "${payload.category_name}" berhasil dibuat!`);
         setIsCreateModalOpen(false);
-        setNewKategori({ name: "", description: "" });
+        setNewKategori({ category_name: "", description: "" });
         await fetchKategori(1);
         setPage(1);
       } else {
@@ -102,14 +97,17 @@ export default function KategoriSoalPage() {
     setIsUpdating(true);
     try {
       const payload = {
-        name: editingKategori.name.trim(),
+        category_name: editingKategori.category_name.trim(),
         ...(editingKategori.description?.trim()
           ? { description: editingKategori.description.trim() }
           : {}),
       };
-      const response = await updateKategoriSoal(editingKategori.id, payload);
+      const response = await updateKategoriSoal(
+        editingKategori.category_name,
+        payload,
+      );
       if (response?.success) {
-        showSuccess(`Kategori "${payload.name}" berhasil diperbarui!`);
+        showSuccess(`Kategori "${payload.category_name}" berhasil diperbarui!`);
         setIsEditModalOpen(false);
         setEditingKategori(null);
         await fetchKategori(page);
@@ -123,26 +121,7 @@ export default function KategoriSoalPage() {
     }
   };
 
-  const openDeleteModal = (kategori: KategoriSoal) => {
-    setKategoriToDelete(kategori);
-    setIsDeleteModalOpen(true);
-  };
 
-  const confirmDelete = async () => {
-    if (!kategoriToDelete) return;
-    setIsDeleting(true);
-    try {
-      await deleteKategoriSoal(kategoriToDelete.id);
-      showSuccess(`Kategori "${kategoriToDelete.name}" berhasil dihapus!`);
-      await fetchKategori(page);
-      setIsDeleteModalOpen(false);
-      setKategoriToDelete(null);
-    } catch (err) {
-      showError((err as Error).message);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -270,17 +249,17 @@ export default function KategoriSoalPage() {
                       const q = search.trim().toLowerCase();
                       if (!q) return true;
                       return (
-                        k.name.toLowerCase().includes(q) ||
+                        k.category_name.toLowerCase().includes(q) ||
                         (k.description
                           ? k.description.toLowerCase().includes(q)
                           : false)
                       );
                     })
                     .map((kategori) => (
-                      <tr key={kategori.id}>
-                        <td>{kategori.id}</td>
+                      <tr key={kategori.category_name}>
+                        <td>{kategori.category_name}</td>
                         <td className="font-medium text-gray-900">
-                          {kategori.name}
+                          {kategori.category_name}
                         </td>
                         <td>{kategori.description || "-"}</td>
                         <td>
@@ -291,12 +270,6 @@ export default function KategoriSoalPage() {
                             >
                               Ubah
                             </button>
-                            <button
-                              onClick={() => openDeleteModal(kategori)}
-                              className="btn btn-danger btn-sm"
-                            >
-                              Hapus
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -305,7 +278,7 @@ export default function KategoriSoalPage() {
                     const q = search.trim().toLowerCase();
                     if (!q) return false;
                     return !(
-                      k.name.toLowerCase().includes(q) ||
+                      k.category_name.toLowerCase().includes(q) ||
                       (k.description
                         ? k.description.toLowerCase().includes(q)
                         : false)
@@ -446,8 +419,8 @@ export default function KategoriSoalPage() {
                 <input
                   type="text"
                   id="name"
-                  name="name"
-                  value={newKategori.name}
+                  name="category_name"
+                  value={newKategori.category_name}
                   onChange={handleInputChange}
                   className="input w-full"
                   required
@@ -508,8 +481,8 @@ export default function KategoriSoalPage() {
                 <input
                   type="text"
                   id="edit-name"
-                  name="name"
-                  value={editingKategori.name}
+                  name="category_name"
+                  value={editingKategori.category_name}
                   onChange={handleEditInputChange}
                   className="input w-full"
                   required
@@ -555,41 +528,7 @@ export default function KategoriSoalPage() {
         </div>
       )}
 
-      {isDeleteModalOpen && kategoriToDelete && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-            <h2 className="text-xl font-bold mb-2">Hapus Kategori</h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Kategori{" "}
-              <span className="font-semibold">{kategoriToDelete.name}</span>
-              akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
-            </p>
-            <div className="flex justify-end gap-4">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isDeleting) {
-                    setIsDeleteModalOpen(false);
-                    setKategoriToDelete(null);
-                  }
-                }}
-                className="btn btn-secondary"
-                disabled={isDeleting}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="btn btn-danger"
-                disabled={isDeleting}
-              >
-                {isDeleting ? "Menghapus..." : "Hapus"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </>
   );
 }

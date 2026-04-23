@@ -36,14 +36,17 @@ function App() {
         >
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/users" element={<UsersPage />} />
-          <Route path="/users/:id" element={<UserDetailPage />} />
+          <Route path="/users/:email" element={<UserDetailPage />} />
           <Route path="/kelas" element={<KelasPage />} />
-          <Route path="/kelas/:id" element={<KelasDetailPage />} />
+          <Route path="/kelas/:class_code" element={<KelasDetailPage />} />
           <Route path="/paket-ujian" element={<PaketUjianPage />} />
           <Route path="/packages" element={<PaketUjianPage />} />
-          <Route path="/paket/:id" element={<PaketUjianDetailPage />} />
           <Route
-            path="/paket/:id/tambah-soal"
+            path="/paket/:package_code"
+            element={<PaketUjianDetailPage />}
+          />
+          <Route
+            path="/paket/:package_code/tambah-soal"
             element={<TambahSoalPaketPage />}
           />
           <Route path="/soal-ujian" element={<QuestionsPage />} />

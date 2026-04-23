@@ -7,27 +7,27 @@ import { useToast } from "../utils/useToast";
 
 export default function KelasDetailPage() {
   const { showSuccess, showError } = useToast();
-  const { id } = useParams<{ id: string }>();
+  const { class_code } = useParams<{ class_code: string }>();
   const [kelas, setKelas] = useState<api.Kelas | null>(null);
   const [assignedPakets, setAssignedPakets] = useState<api.Paket[]>([]);
   const [allPakets, setAllPakets] = useState<api.Paket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [selectedPaketIds, setSelectedPaketIds] = useState<number[]>([]);
+  const [selectedPaketIds, setSelectedPaketIds] = useState<string[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
   const [paketSearchQuery, setPaketSearchQuery] = useState("");
-  const [removingPaketId, setRemovingPaketId] = useState<number | null>(null);
+  const [removingPaketId, setRemovingPaketId] = useState<string | null>(null);
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
   const [paketToRemove, setPaketToRemove] = useState<api.Paket | null>(null);
 
   const fetchDetails = useCallback(async () => {
-    if (!id) return;
+    if (!class_code) return;
     setLoading(true);
     try {
       const [kelasResponse, paketsResponse] = await Promise.all([
-        api.getKelasById(parseInt(id)),
-        api.getPaketsByKelas(parseInt(id)),
+        api.getKelasById(class_code),
+        api.getPaketsByKelas(class_code),
       ]);
 
       if (kelasResponse.success && kelasResponse.data) {
@@ -49,7 +49,7 @@ export default function KelasDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [class_code]);
 
   useEffect(() => {
     fetchDetails();
@@ -61,7 +61,9 @@ export default function KelasDetailPage() {
       if (response.success && response.data) {
         // Filter out pakets that are already assigned to this class
         const unassigned = response.data.data.filter(
-          (p: api.Paket) => !assignedPakets.some((ap) => ap.id === p.id),
+          (p: api.Paket) =>
+            !assignedPakets.some((ap) => ap.package_code === p.package_code) &&
+            p.is_active !== 0,
         );
         setAllPakets(unassigned);
       } else {
@@ -78,7 +80,7 @@ export default function KelasDetailPage() {
 
   const handleAssignPaket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id) return;
+    if (!class_code) return;
 
     if (selectedPaketIds.length === 0) {
       alert("Silakan pilih paket terlebih dahulu.");
@@ -87,10 +89,10 @@ export default function KelasDetailPage() {
 
     setIsAssigning(true);
     try {
-      for (const paketId of selectedPaketIds) {
+      for (const paketCode of selectedPaketIds) {
         const response = await api.assignPaketToKelas({
-          kelas_id: parseInt(id),
-          paket_id: paketId,
+          class_code,
+          package_code: paketCode,
         });
 
         if (!response.success) {
@@ -109,11 +111,11 @@ export default function KelasDetailPage() {
     }
   };
 
-  const togglePaketSelection = (paketId: number) => {
+  const togglePaketSelection = (paketCode: string) => {
     setSelectedPaketIds((prev) =>
-      prev.includes(paketId)
-        ? prev.filter((id) => id !== paketId)
-        : [...prev, paketId],
+      prev.includes(paketCode)
+        ? prev.filter((code) => code !== paketCode)
+        : [...prev, paketCode],
     );
   };
 
@@ -123,25 +125,20 @@ export default function KelasDetailPage() {
   };
 
   const confirmRemovePaket = async () => {
-    if (!id || !paketToRemove) return;
-    const kelasId = Number(id);
-    if (!Number.isFinite(kelasId)) {
-      showError("ID kelas tidak valid.");
-      return;
-    }
+    if (!class_code || !paketToRemove) return;
 
-    setRemovingPaketId(paketToRemove.id);
+    setRemovingPaketId(paketToRemove.package_code);
     try {
       const response = await api.removePaketFromKelas({
-        kelas_id: kelasId,
-        paket_id: paketToRemove.id,
+        class_code,
+        package_code: paketToRemove.package_code,
       });
 
       if (response?.success === false) {
         throw new Error(response.message || "Gagal menghapus paket.");
       }
       setAssignedPakets((prev) =>
-        prev.filter((p) => p.id !== paketToRemove.id),
+        prev.filter((p) => p.package_code !== paketToRemove.package_code),
       );
       showSuccess("Paket berhasil dihapus dari kelas.");
       setIsRemoveModalOpen(false);
@@ -159,7 +156,7 @@ export default function KelasDetailPage() {
     if (!query) return allPakets;
     return allPakets.filter((paket) => {
       const name = paket.name.toLowerCase();
-      const kode = (paket.kode_paket || "").toLowerCase();
+      const kode = (paket.package_code || paket.kode_paket || "").toLowerCase();
       return `${name} ${kode}`.includes(query);
     });
   }, [allPakets, paketSearchQuery]);
@@ -201,7 +198,7 @@ export default function KelasDetailPage() {
         </div>
         <PageHeader
           title="Detail Kelas"
-          description={`ID Kelas #${kelas.id}`}
+          description={`Kode Kelas ${kelas.class_code}`}
         />
 
         <Section>
@@ -211,7 +208,7 @@ export default function KelasDetailPage() {
                 {kelas.name}
               </h2>
               <p className="text-sm text-gray-500 mb-2">
-                Kode Kelas: {kelas.kode_kelas || "-"}
+                Kode Kelas: {kelas.class_code}
               </p>
               <p className="text-gray-600 mb-4">{kelas.description}</p>
               <p className="text-lg font-semibold text-gray-800">
@@ -236,9 +233,6 @@ export default function KelasDetailPage() {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Kode Paket
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -261,14 +255,11 @@ export default function KelasDetailPage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {assignedPakets.map((paket, idx) => (
                         <tr
-                          key={paket.id}
+                          key={paket.package_code}
                           className={`${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-50 transition-colors`}
                         >
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                            {paket.id}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                            {paket.kode_paket || "-"}
+                            {paket.package_code || paket.kode_paket || "-"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {paket.name}
@@ -289,9 +280,9 @@ export default function KelasDetailPage() {
                               type="button"
                               onClick={() => handleRemovePaket(paket)}
                               className="btn btn-danger btn-sm"
-                              disabled={removingPaketId === paket.id}
+                              disabled={removingPaketId === paket.package_code}
                             >
-                              {removingPaketId === paket.id
+                              {removingPaketId === paket.package_code
                                 ? "Menghapus..."
                                 : "Hapus"}
                             </button>
@@ -346,10 +337,12 @@ export default function KelasDetailPage() {
                   </div>
                   <div className="border border-gray-200 rounded-lg overflow-hidden max-h-72 overflow-y-auto">
                     {filteredPakets.map((paket) => {
-                      const isSelected = selectedPaketIds.includes(paket.id);
+                      const isSelected = selectedPaketIds.includes(
+                        paket.package_code,
+                      );
                       return (
                         <label
-                          key={paket.id}
+                          key={paket.package_code}
                           className={`flex gap-3 p-3 cursor-pointer border-b border-gray-200 last:border-b-0 transition-colors ${
                             isSelected ? "bg-primary-100" : "bg-white"
                           } hover:bg-gray-50`}
@@ -358,7 +351,9 @@ export default function KelasDetailPage() {
                             type="checkbox"
                             className="mt-1"
                             checked={isSelected}
-                            onChange={() => togglePaketSelection(paket.id)}
+                            onChange={() =>
+                              togglePaketSelection(paket.package_code)
+                            }
                             disabled={isAssigning}
                           />
                           <div className="flex-1">

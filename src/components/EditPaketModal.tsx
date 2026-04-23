@@ -5,8 +5,7 @@ import Button from "./Button";
 import Alert from "./Alert";
 
 interface PaketData {
-  id: number;
-  kode_paket?: string;
+  package_code: string;
   name: string;
   description: string;
   duration: number;
@@ -19,7 +18,7 @@ interface EditPaketModalProps {
   onClose: () => void;
   paket: PaketData | null;
   onUpdate: (data: Partial<PaketData>) => Promise<void>;
-  onDelete: (id: number) => Promise<void>;
+  onDelete: (packageCode: string) => Promise<void>;
 }
 
 const EditPaketModal: React.FC<EditPaketModalProps> = ({
@@ -31,7 +30,9 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<Partial<PaketData>>({});
   const [errors, setErrors] = useState<
-    Partial<Record<"name" | "description" | "duration" | "kode_paket", string>>
+    Partial<
+      Record<"name" | "description" | "duration" | "package_code", string>
+    >
   >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -42,7 +43,7 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
   useEffect(() => {
     if (paket) {
       setFormData({
-        kode_paket: paket.kode_paket || "",
+        package_code: paket.package_code,
         name: paket.name,
         description: paket.description,
         duration: paket.duration,
@@ -54,7 +55,7 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
   }, [paket]);
 
   const handleInputChange = (
-    field: "name" | "description" | "duration" | "kode_paket",
+    field: "name" | "description" | "duration" | "package_code",
     value: string | number,
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -116,7 +117,7 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
     setIsDeleting(true);
 
     try {
-      await onDelete(paket.id);
+      await onDelete(paket.package_code);
       handleClose();
     } catch (error) {
       console.error("Error deleting paket:", error);
@@ -226,9 +227,9 @@ const EditPaketModal: React.FC<EditPaketModalProps> = ({
           <FormInput
             label="Kode Paket (opsional)"
             placeholder="Contoh: PKT-001"
-            value={formData.kode_paket || ""}
-            onChange={(e) => handleInputChange("kode_paket", e.target.value)}
-            help="Kosongkan jika ingin otomatis dari sistem"
+            value={formData.package_code || ""}
+            onChange={(e) => handleInputChange("package_code", e.target.value)}
+            help="Gunakan kode paket yang unik, contoh: PKT-KLINIK-01"
           />
         </FormGroup>
         <FormGroup>

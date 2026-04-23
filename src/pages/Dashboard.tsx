@@ -57,10 +57,10 @@ export default function Dashboard() {
   const processRevenueData = useCallback((orders: Order[]) => {
     const revenueMap = new Map<string, number>();
 
-    // Filter paid orders and group by date
-    const paidOrders = orders.filter((order) => order.status === "paid");
+    // Filter success orders and group by date
+    const successOrders = orders.filter((order) => order.status === "success");
 
-    paidOrders.forEach((order) => {
+    successOrders.forEach((order) => {
       const date = new Date(order.created_at as string | number | Date)
         .toISOString()
         .split("T")[0];

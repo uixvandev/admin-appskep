@@ -23,28 +23,63 @@ export async function login(req: { email: string; password: string }) {
   return res.json();
 }
 
-// ✅ DELETE PAKET - FITUR YANG DIMINTA SUDAH ADA DAN BERFUNGSI!
-export async function deletePaket(paketId: number): Promise<void> {
+// Paket deactivate (soft delete: is_active = 0)
+export async function deletePaket(packageCode: string): Promise<void> {
   const token = getToken();
   if (!token) throw new Error("Token tidak ditemukan");
 
-  const res = await fetch(`${API_BASE_URL}/pakets/${paketId}`, {
+  const url = `${API_BASE_URL}/pakets/${packageCode}`;
+
+  console.group("🔍 [API] deletePaket request");
+  console.log("URL:", url);
+  console.log("Method:", "DELETE");
+  console.log("Headers:", {
+    Authorization: `Bearer ${token.slice(0, 12)}...`,
+  });
+  console.groupEnd();
+
+  const res = await fetch(url, {
     method: "DELETE",
-    headers: { ...baseHeaders, Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
 
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+
+  let responseBody: unknown;
+  if (isJson) {
+    responseBody = await res.json().catch(() => ({
+      success: false,
+      message: "Invalid JSON response",
+    }));
+  } else {
+    responseBody = await res.text();
+  }
+
+  console.group("📥 [API] deletePaket response");
+  console.log("Status:", res.status, res.statusText);
+  console.log("Content-Type:", contentType || "(empty)");
+  console.log("Response body (full):", responseBody);
+  if (typeof responseBody === "object" && responseBody !== null) {
+    console.log("Response body JSON:", JSON.stringify(responseBody, null, 2));
+  }
+  console.groupEnd();
+
   if (!res.ok) {
-    const errorData = await res
-      .json()
-      .catch(() => ({ message: "Unknown error" }));
-    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+    const message =
+      typeof responseBody === "string"
+        ? responseBody
+        : (responseBody as { message?: string; error?: string })?.message ||
+          (responseBody as { message?: string; error?: string })?.error ||
+          `HTTP error! status: ${res.status}`;
+    throw new Error(message);
   }
 }
 
 export async function getPakets(page = 1, limit = 10) {
   const token = getToken();
   const res = await fetch(
-    `${API_BASE_URL}/pakets?page=${page}&limit=${limit}`,
+    `${API_BASE_URL}/pakets?page=${page}&limit=${limit}&show_all=true`,
     {
       headers: { ...baseHeaders, Authorization: `Bearer ${token}` },
     },
@@ -52,68 +87,78 @@ export async function getPakets(page = 1, limit = 10) {
   return res.json();
 }
 
+
+
 // Basic types
 export type Paket = {
-  id: number;
-  kode_paket?: string | null;
+  package_code: string;
   name: string;
   description: string;
   duration: number;
   total_questions: number;
+  is_active?: number;
+  id?: number;
+  kode_paket?: string | null;
 };
 
 export type User = {
-  id: number;
   name: string;
   email: string;
-  role: string;
+  role: "student" | "admin" | string;
+  id?: number;
   [key: string]: unknown;
 };
 
 export type Kelas = {
-  id: number;
-  kode_kelas?: string | null;
+  class_code: string;
   name: string;
   description: string;
   price: number;
+  is_active?: number;
+  id?: number;
+  kode_kelas?: string | null;
 };
 
 // Enhanced Soal types for the new API
 export type PilihanJawaban = {
   id: number;
-  soal_id: number;
   option_text: string;
   is_correct: boolean;
+  soal_id?: number;
 };
 
 export type KategoriSoal = {
-  id: number;
-  name: string;
+  category_name: string;
+  name?: string;
   description?: string | null;
   created_at?: string;
   updated_at?: string;
+  id?: number;
 };
 
 export type Soal = {
-  id: number;
-  kode_soal?: string | null;
-  kategori_soal_id?: number | null;
+  question_code: string;
+  category_name?: string | null;
   kategori_soal?: KategoriSoal | null;
   question: string;
   explanation: string;
   pilihan_jawaban: PilihanJawaban[];
+  is_active?: number;
+  id?: number;
+  kode_soal?: string | null;
+  kategori_soal_id?: number | null;
 };
 
 // Payload/request types
 export type CreatePaketPayload = {
-  kode_paket?: string;
+  package_code: string;
   name: string;
   description: string;
   duration: number;
 };
 
 export type UpdatePaketPayload = {
-  kode_paket?: string;
+  package_code: string;
   name: string;
   description: string;
   duration: number;
@@ -130,34 +175,35 @@ export type UpdateUserRequest = {
   province?: string;
   city?: string;
   date_of_birth?: string;
-  role?: "admin" | "mahasiswa";
+  role?: "admin" | "student";
 };
 
 export type UpdateKelasRequest = {
-  kode_kelas?: string;
+  class_code: string;
   name: string;
   description: string;
   price: number;
+  is_active?: number;
 };
 
 export type AssignPaketRequest = {
-  kelas_id: number;
-  paket_id: number;
+  class_code: string;
+  package_code: string;
 };
 
 export type RemovePaketFromKelasRequest = {
-  kelas_id: number;
-  paket_id: number;
+  class_code: string;
+  package_code: string;
 };
 
 export type AssignSoalRequest = {
-  paket_id: number;
-  soal_id: number;
+  package_code: string;
+  question_code: string;
 };
 
 export type RemoveSoalRequest = {
-  paket_id: number;
-  soal_id: number;
+  package_code: string;
+  question_code: string;
 };
 
 export type RemoveSoalResponse = {
@@ -188,8 +234,8 @@ export type SoalDetailResponse = {
 
 // Create Soal types
 export type CreateSoalRequest = {
-  kode_soal?: string;
-  kategori_soal_id?: number;
+  question_code: string;
+  category_name: string;
   question: string;
   explanation: string;
   pilihan_jawaban: {
@@ -214,8 +260,8 @@ export type DeleteSoalResponse = {
 
 // Update Soal types
 export type UpdateSoalRequest = {
-  kode_soal?: string;
-  kategori_soal_id?: number;
+  question_code: string;
+  category_name: string;
   question: string;
   explanation: string;
   pilihan_jawaban: {
@@ -240,22 +286,25 @@ export async function createPaket(data: CreatePaketPayload) {
   }).then((r) => r.json());
 }
 
-export async function updatePaket(id: number, data: UpdatePaketPayload) {
-  return fetch(`${API_BASE_URL}/pakets/${id}`, {
+export async function updatePaket(
+  packageCode: string,
+  data: UpdatePaketPayload,
+) {
+  return fetch(`${API_BASE_URL}/pakets/${packageCode}`, {
     method: "PUT",
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
     body: JSON.stringify(data),
   }).then((r) => r.json());
 }
 
-export async function getPaketById(id: number) {
-  return fetch(`${API_BASE_URL}/pakets/${id}`, {
+export async function getPaketById(packageCode: string) {
+  return fetch(`${API_BASE_URL}/pakets/${packageCode}`, {
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
   }).then((r) => r.json());
 }
 
-export async function getSoalsByPaket(id: number) {
-  return fetch(`${API_BASE_URL}/pakets/${id}/soals`, {
+export async function getSoalsByPaket(packageCode: string) {
+  return fetch(`${API_BASE_URL}/pakets/${packageCode}/soals`, {
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
   }).then((r) => r.json());
 }
@@ -271,30 +320,71 @@ export async function getUsers(page = 1, limit = 10) {
   }).then((r) => r.json());
 }
 
-export async function getUserById(id: number) {
-  return fetch(`${API_BASE_URL}/users/${id}`, {
+export async function getUserById(email: string) {
+  const encodedEmail = encodeURIComponent(email);
+  return fetch(`${API_BASE_URL}/users/${encodedEmail}`, {
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
   }).then((r) => r.json());
 }
 
-export async function updateUser(id: number, data: UpdateUserRequest) {
-  return fetch(`${API_BASE_URL}/users/${id}`, {
+export async function updateUser(_email: string, data: UpdateUserRequest) {
+  const token = getToken();
+  const requestBody = JSON.stringify(data);
+  const url = `${API_BASE_URL}/users/profile`;
+
+  console.group("🔍 [API] updateUser request");
+  console.log("URL:", url);
+  console.log("Method:", "PUT");
+  console.log("Headers:", {
+    ...baseHeaders,
+    Authorization: token ? `Bearer ${token.slice(0, 12)}...` : null,
+  });
+  console.log("Raw payload object:", data);
+  console.log("JSON payload:", requestBody);
+  console.groupEnd();
+
+  const response = await fetch(url, {
     method: "PUT",
-    headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
-    body: JSON.stringify(data),
-  }).then((r) => r.json());
+    headers: { ...baseHeaders, Authorization: `Bearer ${token}` },
+    body: requestBody,
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const responseBody = isJson ? await response.json() : await response.text();
+
+  console.group("📥 [API] updateUser response");
+  console.log("Status:", response.status, response.statusText);
+  console.log("Content-Type:", contentType || "(empty)");
+  console.log("Response body (full):", responseBody);
+  if (typeof responseBody === "object" && responseBody !== null) {
+    console.log("Response body JSON:", JSON.stringify(responseBody, null, 2));
+  }
+  console.groupEnd();
+
+  if (!response.ok) {
+    const serverMessage =
+      typeof responseBody === "string"
+        ? responseBody
+        : responseBody?.error || responseBody?.message || "Invalid input";
+    throw new Error(serverMessage);
+  }
+
+  return responseBody;
 }
 
-export async function updateUserRole(id: number, role: string) {
-  return fetch(`${API_BASE_URL}/users/${id}/role`, {
+export async function updateUserRole(email: string, role: string) {
+  const encodedEmail = encodeURIComponent(email);
+  return fetch(`${API_BASE_URL}/users/${encodedEmail}/role`, {
     method: "PUT",
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
     body: JSON.stringify({ role }),
   }).then((r) => r.json());
 }
 
-export async function deleteUser(id: number) {
-  return fetch(`${API_BASE_URL}/users/${id}`, {
+export async function deleteUser(email: string) {
+  const encodedEmail = encodeURIComponent(email);
+  return fetch(`${API_BASE_URL}/users/${encodedEmail}`, {
     method: "DELETE",
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
   });
@@ -302,9 +392,12 @@ export async function deleteUser(id: number) {
 
 // Kelas functions
 export async function getKelas(page = 1, limit = 10) {
-  return fetch(`${API_BASE_URL}/kelas?page=${page}&limit=${limit}`, {
-    headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
-  }).then((r) => r.json());
+  return fetch(
+    `${API_BASE_URL}/kelas?page=${page}&limit=${limit}&show_all=true`,
+    {
+      headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
+    },
+  ).then((r) => r.json());
 }
 
 export async function createKelas(data: CreateKelasRequest) {
@@ -315,29 +408,71 @@ export async function createKelas(data: CreateKelasRequest) {
   }).then((r) => r.json());
 }
 
-export async function updateKelas(id: number, data: UpdateKelasRequest) {
-  return fetch(`${API_BASE_URL}/kelas/${id}`, {
+export async function updateKelas(classCode: string, data: UpdateKelasRequest) {
+  const token = getToken();
+  const url = `${API_BASE_URL}/kelas/${classCode}`;
+  const requestBody = JSON.stringify(data);
+
+  console.group("🔍 [API] updateKelas request");
+  console.log("URL:", url);
+  console.log("Method:", "PUT");
+  console.log("Headers:", {
+    ...baseHeaders,
+    Authorization: token ? `Bearer ${token.slice(0, 12)}...` : null,
+  });
+  console.log("Raw payload object:", data);
+  console.log("JSON payload:", requestBody);
+  console.groupEnd();
+
+  return fetch(url, {
     method: "PUT",
-    headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
-    body: JSON.stringify(data),
-  }).then((r) => r.json());
+    headers: { ...baseHeaders, Authorization: `Bearer ${token}` },
+    body: requestBody,
+  }).then(async (r) => {
+    const contentType = r.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+    const responseBody = isJson ? await r.json() : await r.text();
+
+    console.group("📥 [API] updateKelas response");
+    console.log("Status:", r.status, r.statusText);
+    console.log("Content-Type:", contentType || "(empty)");
+    console.log("Response body (full):", responseBody);
+    if (typeof responseBody === "object" && responseBody !== null) {
+      console.log("Response body JSON:", JSON.stringify(responseBody, null, 2));
+    }
+    console.groupEnd();
+
+    if (!r.ok) {
+      const serverMessage =
+        typeof responseBody === "string"
+          ? responseBody
+          : responseBody?.error ||
+            responseBody?.message ||
+            "Failed to update kelas";
+      throw new Error(serverMessage);
+    }
+
+    return responseBody;
+  });
 }
 
-export async function deleteKelas(id: number) {
-  return fetch(`${API_BASE_URL}/kelas/${id}`, {
+export async function deleteKelas(classCode: string) {
+  return fetch(`${API_BASE_URL}/kelas/${classCode}`, {
     method: "DELETE",
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
   });
 }
 
-export async function getKelasById(id: number) {
-  return fetch(`${API_BASE_URL}/kelas/${id}`, {
+
+
+export async function getKelasById(classCode: string) {
+  return fetch(`${API_BASE_URL}/kelas/${classCode}`, {
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
   }).then((r) => r.json());
 }
 
-export async function getPaketsByKelas(id: number) {
-  return fetch(`${API_BASE_URL}/kelas/${id}/pakets`, {
+export async function getPaketsByKelas(classCode: string) {
+  return fetch(`${API_BASE_URL}/kelas/${classCode}/pakets`, {
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
   }).then((r) => r.json());
 }
@@ -355,8 +490,8 @@ export async function removePaketFromKelas(data: RemovePaketFromKelasRequest) {
     method: "DELETE",
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
     body: JSON.stringify({
-      kelas_id: data.kelas_id,
-      paket_id: data.paket_id,
+      class_code: data.class_code,
+      package_code: data.package_code,
     }),
   });
 
@@ -385,7 +520,7 @@ export async function getAllSoals(
   const finalLimit = limit || 10;
 
   const res = await fetch(
-    `${API_BASE_URL}/soals?page=${finalPage}&limit=${finalLimit}`,
+    `${API_BASE_URL}/soals?page=${finalPage}&limit=${finalLimit}&show_all=true`,
     {
       method: "GET",
       headers: {
@@ -411,7 +546,7 @@ export async function getAllSoals(
 
 // 2. Get soal by ID
 export async function getSoalById(
-  soalId: number,
+  questionCode: string,
   signal?: AbortSignal,
 ): Promise<SoalDetailResponse> {
   const token = getToken();
@@ -419,7 +554,7 @@ export async function getSoalById(
     throw new Error("No authentication token");
   }
 
-  const res = await fetch(`${API_BASE_URL}/soals/${soalId}`, {
+  const res = await fetch(`${API_BASE_URL}/soals/${questionCode}`, {
     method: "GET",
     headers: {
       ...baseHeaders,
@@ -476,7 +611,7 @@ export async function createSoal(
 
 // 4. Delete soal by ID
 export async function deleteSoal(
-  soalId: number,
+  questionCode: string,
   signal?: AbortSignal,
 ): Promise<DeleteSoalResponse> {
   const token = getToken();
@@ -484,7 +619,7 @@ export async function deleteSoal(
     throw new Error("No authentication token");
   }
 
-  const res = await fetch(`${API_BASE_URL}/soals/${soalId}`, {
+  const res = await fetch(`${API_BASE_URL}/soals/${questionCode}`, {
     method: "DELETE",
     headers: {
       ...baseHeaders,
@@ -510,9 +645,11 @@ export async function deleteSoal(
   return data as DeleteSoalResponse;
 }
 
+
+
 // 5. Update soal by ID
 export async function updateSoal(
-  soalId: number,
+  questionCode: string,
   soalData: UpdateSoalRequest,
   signal?: AbortSignal,
 ): Promise<UpdateSoalResponse> {
@@ -520,7 +657,7 @@ export async function updateSoal(
   if (!token) {
     throw new Error("No authentication token");
   }
-  const url = `${API_BASE_URL}/soals/${soalId}`;
+  const url = `${API_BASE_URL}/soals/${questionCode}`;
 
   const res = await fetch(url, {
     method: "PUT",
@@ -602,12 +739,12 @@ export type KategoriSoalListResponse = {
 };
 
 export type CreateKategoriSoalRequest = {
-  name: string;
+  category_name: string;
   description?: string;
 };
 
 export type UpdateKategoriSoalRequest = {
-  name?: string;
+  category_name?: string;
   description?: string;
 };
 
@@ -626,18 +763,18 @@ export async function createKategoriSoal(data: CreateKategoriSoalRequest) {
 }
 
 export async function updateKategoriSoal(
-  id: number,
+  categoryName: string,
   data: UpdateKategoriSoalRequest,
 ) {
-  return fetch(`${API_BASE_URL}/kategori-soal/${id}`, {
+  return fetch(`${API_BASE_URL}/kategori-soal/${categoryName}`, {
     method: "PUT",
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
     body: JSON.stringify(data),
   }).then((r) => r.json());
 }
 
-export async function deleteKategoriSoal(id: number) {
-  return fetch(`${API_BASE_URL}/kategori-soal/${id}`, {
+export async function deleteKategoriSoal(categoryName: string) {
+  return fetch(`${API_BASE_URL}/kategori-soal/${categoryName}`, {
     method: "DELETE",
     headers: { ...baseHeaders, Authorization: `Bearer ${getToken()}` },
   });
@@ -645,7 +782,7 @@ export async function deleteKategoriSoal(id: number) {
 
 // Additional types
 export type CreateKelasRequest = {
-  kode_kelas?: string;
+  class_code: string;
   name: string;
   description: string;
   price: number;
@@ -653,31 +790,31 @@ export type CreateKelasRequest = {
 
 // Order types
 export type OrderUser = {
-  id: number;
   name: string;
   email: string;
-  role: string;
+  role?: string;
   phone_number: string;
   date_of_birth: string;
   gender: string;
   city: string;
   created_at: string;
   updated_at: string;
-  updated_by: number;
+  updated_by?: number;
+  id?: number;
 };
 
 export type OrderKelas = {
-  id: number;
+  class_code?: string;
   name: string;
   description: string;
   price: number;
+  id?: number;
 };
 
 export type Order = {
-  id: number;
-  order_number: number;
-  user_id: number;
-  kelas_id: number;
+  order_number: string;
+  email?: string;
+  class_code?: string;
   payment_reference: string;
   gross_amount: number;
   status: string;
@@ -687,8 +824,11 @@ export type Order = {
   snap_redirect_url: string;
   created_at: string;
   updated_at: string;
-  user: OrderUser;
-  kelas: OrderKelas;
+  user?: OrderUser;
+  kelas?: OrderKelas;
+  id?: number;
+  user_id?: number;
+  kelas_id?: number;
 };
 
 export type OrdersResponse = {
@@ -741,7 +881,7 @@ export async function getAllOrders(
 
 // Update Order Status types
 export type UpdateOrderStatusRequest = {
-  status: "paid" | "pending" | "failed" | "cancelled";
+  status: "success" | "pending" | "failed";
 };
 
 export type UpdateOrderStatusResponse = {
@@ -751,8 +891,8 @@ export type UpdateOrderStatusResponse = {
 
 // Update order status function
 export async function updateOrderStatus(
-  orderId: number,
-  status: "paid" | "pending" | "failed" | "cancelled",
+  orderNumber: string,
+  status: "success" | "pending" | "failed",
   signal?: AbortSignal,
 ): Promise<UpdateOrderStatusResponse> {
   const token = getToken();
@@ -760,7 +900,7 @@ export async function updateOrderStatus(
     throw new Error("No authentication token");
   }
 
-  const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
+  const res = await fetch(`${API_BASE_URL}/orders/${orderNumber}/status`, {
     method: "PUT",
     headers: {
       ...baseHeaders,

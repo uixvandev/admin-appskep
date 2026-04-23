@@ -10,14 +10,14 @@ export default function UsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [deleting, setDeleting] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState<api.User | null>(null);
   const [showRoleModal, setShowRoleModal] = useState<api.User | null>(null);
-  const [updatingRole, setUpdatingRole] = useState<number | null>(null);
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [sortBy, setSortBy] = useState("name");
-  const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const limit = 10;
 
@@ -108,9 +108,7 @@ export default function UsersPage() {
     switch (role) {
       case "admin":
         return "bg-red-100 text-red-800";
-      case "dosen":
-        return "bg-blue-100 text-blue-800";
-      case "mahasiswa":
+      case "student":
         return "bg-green-100 text-green-800";
       default:
         return "bg-gray-100 text-gray-800";
@@ -121,10 +119,8 @@ export default function UsersPage() {
     switch (role) {
       case "admin":
         return "Administrator";
-      case "dosen":
-        return "Dosen";
-      case "mahasiswa":
-        return "Mahasiswa";
+      case "student":
+        return "Student";
       default:
         return role;
     }
@@ -163,10 +159,10 @@ export default function UsersPage() {
   }
 
   async function handleDeleteUser(user: api.User) {
-    setDeleting(user.id);
+    setDeleting(user.email);
     try {
-      await api.deleteUser(user.id);
-      setUsers(users.filter((u) => u.id !== user.id));
+      await api.deleteUser(user.email);
+      setUsers(users.filter((u) => u.email !== user.email));
       setShowDeleteModal(null);
       // Reload current page if it's empty
       if (users.length === 1 && currentPage > 1) {
@@ -182,11 +178,13 @@ export default function UsersPage() {
   }
 
   async function handleChangeRole(user: api.User, newRole: string) {
-    setUpdatingRole(user.id);
+    setUpdatingRole(user.email);
     try {
-      await api.updateUserRole(user.id, newRole);
+      await api.updateUserRole(user.email, newRole);
       setUsers(
-        users.map((u) => (u.id === user.id ? { ...u, role: newRole } : u)),
+        users.map((u) =>
+          u.email === user.email ? { ...u, role: newRole } : u,
+        ),
       );
       setShowRoleModal(null);
     } catch (err) {
@@ -198,11 +196,11 @@ export default function UsersPage() {
     }
   }
 
-  function handleSelectUser(userId: number) {
+  function handleSelectUser(userEmail: string) {
     setSelectedUsers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId],
+      prev.includes(userEmail)
+        ? prev.filter((email) => email !== userEmail)
+        : [...prev, userEmail],
     );
   }
 
@@ -210,7 +208,7 @@ export default function UsersPage() {
     if (selectAll) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(filteredUsers.map((user) => user.id));
+      setSelectedUsers(filteredUsers.map((user) => user.email));
     }
     setSelectAll(!selectAll);
   }
@@ -389,7 +387,7 @@ export default function UsersPage() {
               >
                 <option value="">All Roles</option>
                 <option value="admin">Administrator</option>
-                <option value="mahasiswa">Mahasiswa</option>
+                <option value="student">Student</option>
               </select>
             </div>
 
@@ -459,13 +457,13 @@ export default function UsersPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
+                  <tr key={user.email} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <input
                           type="checkbox"
-                          checked={selectedUsers.includes(user.id)}
-                          onChange={() => handleSelectUser(user.id)}
+                          checked={selectedUsers.includes(user.email)}
+                          onChange={() => handleSelectUser(user.email)}
                           className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 mr-3"
                         />
                         <div className="flex-shrink-0 h-10 w-10">
@@ -500,7 +498,7 @@ export default function UsersPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
                         <a
-                          href={`/users/${user.id}`}
+                          href={`/users/${user.email}`}
                           className="text-primary-600 hover:text-primary-900 flex items-center gap-1"
                         >
                           <svg
@@ -730,7 +728,7 @@ export default function UsersPage() {
                 disabled={deleting !== null}
                 className="btn btn-danger flex-1"
               >
-                {deleting === showDeleteModal.id ? (
+                {deleting === showDeleteModal.email ? (
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     Deleting...
@@ -854,7 +852,7 @@ export default function UsersPage() {
                         </div>
                       </div>
                     </div>
-                    {updatingRole === showRoleModal.id && (
+                    {updatingRole === showRoleModal.email && (
                       <svg
                         className="w-5 h-5 animate-spin text-primary-600"
                         fill="none"
@@ -873,65 +871,12 @@ export default function UsersPage() {
                 </button>
 
                 <button
-                  onClick={() => handleChangeRole(showRoleModal, "dosen")}
+                  onClick={() => handleChangeRole(showRoleModal, "student")}
                   disabled={
-                    updatingRole !== null || showRoleModal.role === "dosen"
+                    updatingRole !== null || showRoleModal.role === "student"
                   }
                   className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
-                    showRoleModal.role === "dosen"
-                      ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                      : "border-blue-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <svg
-                          className="w-4 h-4 text-blue-600"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                          />
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">Dosen</div>
-                        <div className="text-sm text-gray-600">
-                          Teacher access with course management
-                        </div>
-                      </div>
-                    </div>
-                    {updatingRole === showRoleModal.id && (
-                      <svg
-                        className="w-5 h-5 animate-spin text-primary-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => handleChangeRole(showRoleModal, "mahasiswa")}
-                  disabled={
-                    updatingRole !== null || showRoleModal.role === "mahasiswa"
-                  }
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
-                    showRoleModal.role === "mahasiswa"
+                    showRoleModal.role === "student"
                       ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
                       : "border-green-200 hover:border-green-300 hover:bg-green-50 cursor-pointer"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -955,14 +900,14 @@ export default function UsersPage() {
                       </div>
                       <div>
                         <div className="font-semibold text-gray-900">
-                          Mahasiswa
+                          Student
                         </div>
                         <div className="text-sm text-gray-600">
                           Student access with limited permissions
                         </div>
                       </div>
                     </div>
-                    {updatingRole === showRoleModal.id && (
+                    {updatingRole === showRoleModal.email && (
                       <svg
                         className="w-5 h-5 animate-spin text-green-600"
                         fill="none"
